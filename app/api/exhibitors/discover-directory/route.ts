@@ -45,7 +45,17 @@ export async function POST(req:NextRequest){
   const token=bearer.startsWith('Bearer ')?bearer.slice(7):'';
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if(!token||!url||!key)return NextResponse.json({error:'Unauthorized'},{status:401});
-  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  const db=createClient(url,key,{
+  auth:{
+    persistSession:false,
+    autoRefreshToken:false
+  },
+  global:{
+    headers:{
+      Authorization:`Bearer ${token}`
+    }
+  }
+});
   const {data:{user},error}=await db.auth.getUser(token);
   if(error||!user)return NextResponse.json({error:'Unauthorized'},{status:401});
   const body=await req.json() as {exhibitionId?:string};
