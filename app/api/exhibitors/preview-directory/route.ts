@@ -12,7 +12,10 @@ const ALLOWED_HOSTS = new Set([
   "dwtc.com",
   "www.dwtc.com",
   "informaconnect.com",
-  "www.informaconnect.com"
+  "www.informaconnect.com",
+  "theairportshow.com",
+  "www.theairportshow.com",
+  "airportshow.german-pavilion.com"
 ]);
 
 function approved(raw: string): URL | null {
@@ -181,7 +184,7 @@ function extract(html: string, source: string) {
 
     if (!approved(url.href)) continue;
 
-    if (!/\/exhibitor(?:s)?\/[^/?#]+/i.test(url.pathname)) continue;
+    if (!/\/exhibitor(?:s)?\/[^/?#]+|\/exhibitor-details\/[^/?#]+|\/en\/sites\/exhibitors\/[^/?#]+/i.test(url.pathname)) continue;
 
     if (/login|register|services|manual|contact|apply/i.test(url.pathname)) {
       continue;
