@@ -68,11 +68,12 @@ export async function POST(req:NextRequest){
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
   const suggestedSearches=[`\"${event.name}\" ${event.edition_year} exhibitor list`,`\"${event.name}\" ${event.edition_year} exhibitors directory`,`\"${event.name}\" ${event.edition_year} sponsors exhibitors`];
   const visited=new Set<string>();let pagesChecked=0;
+  const unsupportedSeedHosts:string[]=[];
   const checkedHosts=new Set<string>();
   let currentYearEvidence=false;
   const evidenceUrls:string[]=[];
   for(const seed of [...new Set(seeds)].slice(0,3)){
-   const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
+   const target=safe(seed);if(!target){try{const host=new URL(seed).hostname;unsupportedSeedHosts.push(host);errors.push('Official event or directory host needs review and a supported adapter: '+host)}catch{errors.push('Invalid event website URL')}continue}
    try{const page=await getHtml(target);visited.add(page.url);checkedHosts.add(new URL(page.url).hostname);pagesChecked++;results.push(...candidates(page.html,page.url));
     // Inspect a bounded set of same-host candidate directory pages; never crawl arbitrary sites.
     const follow=candidates(page.html,page.url).filter(c=>c.score>=60).slice(0,5);
@@ -105,6 +106,6 @@ export async function POST(req:NextRequest){
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],suggestedSearches,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],unsupportedSeedHosts:[...new Set(unsupportedSeedHosts)],suggestedSearches,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
