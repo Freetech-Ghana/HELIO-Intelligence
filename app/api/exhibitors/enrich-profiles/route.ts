@@ -121,6 +121,29 @@ function parseHrSummitProfile(html: string, source: string): Profile {
     description = paragraphText.join(" ").slice(0, 2000) || clean(profileSection).slice(0, 2000);
     if (/^(organisation profile for|informa helps)/i.test(description)) description = "";
   }
+  // Company links must appear inside the exhibitor's own Profile content.
+  // Never use Informa navigation/footer links as company contact evidence.
+  let website = "";
+  if (profileHeading) {
+    const start = profileHeading.index! + profileHeading[0].length;
+    const end = headings.find(h => h.index! >= start)?.index ?? Math.min(start + 6000, body.length);
+    const section = body.slice(start, end);
+    for (const link of section.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+      try {
+        const candidate = new URL(decode(link[1]), source);
+        const label = clean(link[2]);
+        if (candidate.protocol === "https:" && !candidate.username && !candidate.password &&
+            !HOSTS.has(candidate.hostname.toLowerCase()) &&
+            !/(facebook|instagram|linkedin|twitter|youtube|tiktok|wa\.me|whatsapp|bit\.ly)/i.test(candidate.hostname) &&
+            (/website|visit site|visit us/i.test(label) || /^https?:\/\/|^www\./i.test(label))) {
+          website = candidate.href;
+          break;
+        }
+      } catch {
+        // Skip invalid links; no automatic off-site requests.
+      }
+    }
+  }
   // Preserve exact label/value evidence for review; never silently resolve conflicts.
   const standEvidence: {value: string; context: string; source_url: string}[] = [];
   if (sectionHeading) {
@@ -144,7 +167,7 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const evidence = {stand_candidates: standEvidence, stand_status: conflict ? "conflicting_requires_review" : stand ? "extracted_requires_review" : "not_found", source_url: source};
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
-  return {company_name, country:"", hall:"", stand, website:"", description, profile_url:source, evidence};
+  return {company_name, country:"", hall:"", stand, website, description, profile_url:source, evidence};
 }
 
 function parseProfile(html: string, source: string): Profile {
