@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@supabase/supabase-js';
 export const runtime='nodejs';
-const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com']);
+const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com']);
 const MAX_BYTES=500000;
 function safe(raw:string){try{const u=new URL(raw);return u.protocol==='https:'&&!u.username&&!u.password&&APPROVED.has(u.hostname.toLowerCase())?u:null}catch{return null}}
 async function getHtml(url:URL){
@@ -67,6 +67,10 @@ export async function POST(req:NextRequest){
   for(const seed of seeds.slice(0,2)){
    const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
    try{const page=await getHtml(target);results.push(...candidates(page.html,page.url))}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
+  }
+  // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
+  if (/hr summit|hrse|hr summit & expo/i.test(event.name||'')) {
+    results.push({url:'https://informaconnect.com/hr-summit-expo/2025-sponsors-and-exhibitors/#2025-exhibitor-list',label:'Historical 2025 sponsors and exhibitors — NOT a verified 2026 directory',score:15});
   }
   // Known official directory is a suggestion only, never auto-verified or imported.
   if(/gulf\s*host/i.test(event.name||''))results.push({url:'https://www.gulfhost.ae/exhibitors',label:'GulfHost official exhibitor directory candidate',score:110});
