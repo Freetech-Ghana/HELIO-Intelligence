@@ -45,12 +45,31 @@ const menu=[
  {id:"lead-scoring",label:"Lead Scoring & Qualification",href:"/lead-scoring"}
 ];
 // Consolidated navigation; legacy routes remain accessible for existing links and saved data.
+// Staff-facing workflow navigation. Existing legacy routes remain available.
 const menuGroups=[
- {label:"Exhibition Management",ids:["discovery","exhibitions","directory-finder"]},
- {label:"Lead Intelligence",ids:["leads","lead-scoring","research"]},
- {label:"Sales & CRM",ids:["pipeline","projects","ai-assistant"]},
- {label:"Marketing",ids:["outreach","email-marketing"]},
- {label:"Reports",ids:["reports"]}
+ {label:"FIND & COLLECT",ids:["discovery","directory-finder"]},
+ {label:"REVIEW & PREPARE",ids:["leads","research","lead-scoring"]},
+ {label:"CONTACT & SELL",ids:["outreach","pipeline"]},
+ {label:"ANALYZE",ids:["reports"]}
+];
+const staffLabels:Record<string,string>={
+ discovery:"1. Find Exhibitions",
+ "directory-finder":"2. Import Exhibitors",
+ leads:"3. Exhibitor Database",
+ research:"4. Verify Company Details",
+ "lead-scoring":"5. Prioritize Leads",
+ outreach:"6. Email & Follow-Up",
+ pipeline:"7. Sales & Customers",
+ reports:"Reports"
+};
+const staffSteps=[
+ {id:"discovery",label:"Find exhibitions",description:"Discover events and check official sources"},
+ {id:"directory-finder",label:"Import exhibitors",description:"Find the official directory, review and import companies"},
+ {id:"leads",label:"Review exhibitor database",description:"Search companies and identify missing details"},
+ {id:"research",label:"Verify company details",description:"Research contacts and review supporting evidence"},
+ {id:"lead-scoring",label:"Prioritize leads",description:"Score prospects and qualify opportunities"},
+ {id:"outreach",label:"Contact and follow up",description:"Prepare outreach, email campaigns and next actions"},
+ {id:"pipeline",label:"Manage sales and customers",description:"Track opportunities, quotations and projects"}
 ];
 export default function Workspace({module}:{module:string}){
  const router=useRouter();
@@ -91,12 +110,12 @@ export default function Workspace({module}:{module:string}){
  async function exportAll(){try{const{data}=await db().auth.getSession();if(!data.session)throw Error('Please sign in');const r=await fetch('/api/export'+(selected?'?exhibition='+encodeURIComponent(selected):''),{headers:{Authorization:`Bearer ${data.session.access_token}`}});if(!r.ok)throw Error(await r.text());const blob=await r.blob();const a=document.createElement('a');const link=URL.createObjectURL(blob);a.href=link;a.download='HELIO_Exhibitor_Research.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(link),1000)}catch(e){setMsg((e as Error).message)}}
  if(loading)return <main className="auth">Loading…</main>;
  if(!session)return <main className="auth"><img className="login-logo" src="/helio-logo.png" alt="HELIO Advertising & Studio"/><h1>HELIO Intelligence</h1><p>Secure exhibition research workspace</p><Link className="button" href="/login">Staff sign in</Link></main>;
- const heading=menu.find(m=>m.id===module)?.label||'Dashboard';
+ const heading=staffLabels[module]||menu.find(m=>m.id===module)?.label||'Dashboard';
  const picker=<section className="panel"><label><b>Selected exhibition</b><select style={{display:'block',width:'100%',padding:12,marginTop:8}} value={selected} onChange={e=>{setSelected(e.target.value);setQuery('');setCountryFilter('all');setStatusFilter('all')}}>{events.map(e=><option value={e.id} key={e.id}>{e.name} ({e.edition_year||'Year unknown'})</option>)}</select></label>{current?.discovery_start_date&&<p>Discovered dates: {current.discovery_start_date} – {current.discovery_end_date||'End not recorded'} · {current.date_verified?'Verified':'Not yet verified'}</p>}</section>;
  const leadsTable=<div className="tablewrap"><table><thead><tr><th>Company</th><th>Country</th><th>Website</th><th>Email</th><th>Verification</th><th>Official profile</th></tr></thead><tbody>{visible.map(l=><tr key={l.id}><td><b>{l.company_name}</b>{l.hall||l.stand?<small> · {l.hall||''} {l.stand||''}</small>:null}</td><td>{l.country||'—'}</td><td>{l.website?<a href={l.website} target="_blank" rel="noopener noreferrer">Website ↗</a>:'—'}</td><td>{l.email||'Not found'}</td><td><span className="pill">{l.verification_status}</span></td><td>{l.profile_url?<a href={l.profile_url} target="_blank" rel="noopener noreferrer">Profile ↗</a>:'—'}</td></tr>)}{visible.length===0&&<tr><td colSpan={6} className="empty">No matching exhibitors for this exhibition.</td></tr>}</tbody></table></div>;
  const filters=<div className="formgrid"><label>Find company, email, stand<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search exhibitors..."/></label><label>Country<select value={countryFilter} onChange={e=>setCountryFilter(e.target.value)}><option value="all">All countries</option>{countries.map(c=><option key={c}>{c}</option>)}</select></label><label>Contact / verification<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All exhibitors</option><option value="email">Has email</option><option value="no-email">Email missing</option><option value="verified">Verified</option><option value="pending">Pending</option><option value="directory_only">Directory only</option><option value="conflict">Conflict</option></select></label></div>;
- return <div className="shell"><aside><div className="brand"><img className="brand-logo" src="/helio-logo.png" alt="HELIO Advertising & Studio"/><small>EXHIBITION INTELLIGENCE</small></div><nav className="workspace-nav">{menu.filter(m=>m.id==='dashboard').map(m=><Link key={m.id} href={m.href} aria-current={module===m.id?'page':undefined} className={module===m.id?'active':''}>{m.label}</Link>)}{menuGroups.map(group=><details key={group.label} className="nav-group" open={group.ids.includes(module)||undefined}><summary>{group.label}</summary><div className="nav-group-items">{menu.filter(m=>group.ids.includes(m.id)).map(m=><Link key={m.id} href={m.href} aria-current={module===m.id?'page':undefined} className={module===m.id?'active':''}>{m.label}</Link>)}</div></details>)}</nav><div className="asidefoot">HELIO v3.0 · Opportunity Radar</div></aside><main><header><div><span className="eyebrow">HELIO / LEAD GENERATION</span><h1>{heading}</h1><p>Research exhibitors. Verify contacts. Build opportunities.</p></div><button className="ghost" onClick={async()=>{await db().auth.signOut();router.push('/login')}}>Sign out</button></header>
- {module==='dashboard'&&<SalesCommandCentre leads={leads} events={events}/>}
+ return <div className="shell"><aside><div className="brand"><img className="brand-logo" src="/helio-logo.png" alt="HELIO Advertising & Studio"/><small>EXHIBITION INTELLIGENCE</small></div><nav className="workspace-nav">{menu.filter(m=>m.id==='dashboard').map(m=><Link key={m.id} href={m.href} aria-current={module===m.id?'page':undefined} className={module===m.id?'active':''}>{staffLabels[m.id]||m.label}</Link>)}{menuGroups.map(group=><details key={group.label} className="nav-group" open={group.ids.includes(module)||undefined}><summary>{group.label}</summary><div className="nav-group-items">{menu.filter(m=>group.ids.includes(m.id)).map(m=><Link key={m.id} href={m.href} aria-current={module===m.id?'page':undefined} className={module===m.id?'active':''}>{m.label}</Link>)}</div></details>)}</nav><div className="asidefoot">HELIO v3.0 · Opportunity Radar</div></aside><main><header><div><span className="eyebrow">HELIO / LEAD GENERATION</span><h1>{heading}</h1><p>Research exhibitors. Verify contacts. Build opportunities.</p></div><button className="ghost" onClick={async()=>{await db().auth.signOut();router.push('/login')}}>Sign out</button></header>
+ {module==='dashboard'&&<><section className="panel"><h2>Start here — HELIO workflow</h2><p>Follow these steps to turn an exhibition into verified sales opportunities. Open any step to continue your work.</p><div className="eventlist">{staffSteps.map((step,index)=><Link className="button" key={step.id} href={menu.find(m=>m.id===step.id)?.href||"/"}><b>{index+1}. {step.label}</b> — {step.description} →</Link>)}</div></section><SalesCommandCentre leads={leads} events={events}/></>}
  {module==='global-search'&&<GlobalExhibitorSearch leads={leads} events={events}/>}
  {module==='discovery'&&<><ExhibitionDiscovery events={events}/><OpportunityRadar events={events} leads={leads}/></>}
  {module==='opportunity-radar'&&<OpportunityRadar events={events} leads={leads}/>}
@@ -104,9 +123,9 @@ export default function Workspace({module}:{module:string}){
  {module==='find-exhibitors'&&<>{picker}<section className="panel"><div className="panelhead"><div><h2>Identify exhibitors</h2><p>Search existing companies, identify missing contact details, and review official directory profiles.</p></div></div><div className="metrics"><div className="metric"><span>Identified</span><strong>{selectedLeads.length}</strong></div><div className="metric"><span>With email</span><strong>{selectedLeads.filter(l=>!!l.email).length}</strong></div><div className="metric"><span>Verified</span><strong>{selectedLeads.filter(l=>l.verification_status==='verified').length}</strong></div></div><form onSubmit={saveDirectory} className="formgrid"><label>Official exhibitor directory<input type="url" value={directoryInput} onChange={e=>setDirectoryInput(e.target.value)} placeholder="https://..."/></label><button type="submit" disabled={savingDirectory}>{savingDirectory?'Saving...':'Save directory URL'}</button>{current?.directory_url&&<a className="button" target="_blank" rel="noopener noreferrer" href={current.directory_url}>Open Official Directory ↗</a>}</form>{filters}<p>{visible.length} matching exhibitors · {selectedLeads.filter(l=>!l.email).length} missing email · {selectedLeads.filter(l=>l.outreach_opt_out).length} opted out</p>{leadsTable}</section><section className="panel"><h2>Import exhibitors</h2><p><Link className="button" href="/directory-finder">Open Automatic Exhibitor Import →</Link></p><p>Use the existing import tool for approved directory data. Importing is not an automatic web crawler.</p><LeadImport key={selected} exhibitionId={selected} onImported={refresh}/></section></>}
  {module==='leads'&&<>{picker}<section className="panel"><h2>Global Exhibitor Search</h2><GlobalExhibitorSearch leads={leads} events={events}/></section><section className="panel"><div className="panelhead"><div><h2>Exhibitor Database</h2><p>{visible.length} records in selected exhibition</p></div><button onClick={exportAll}>↓ Export selected exhibition Excel</button></div>{filters}{leadsTable}<h3>Add exhibitor (manual entry)</h3><form className="formgrid" onSubmit={addLead}><label>Company<input required value={company} onChange={e=>setCompany(e.target.value)}/></label><label>Country<input value={country} onChange={e=>setCountry(e.target.value)}/></label><label>Website<input type="url" value={website} onChange={e=>setWebsite(e.target.value)}/></label><label>Published business email<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><button disabled={!selected}>+ Save exhibitor</button></form></section><section className="panel"><LeadImport key={selected} exhibitionId={selected} onImported={refresh}/></section></>}
  {module==='qualification'&&<>{picker}<LeadQualification leads={selectedLeads} exhibitionId={selected}/></>}
- {module==='outreach'&&<>{picker}<OutreachCentre leads={selectedLeads} exhibitionId={selected}/></>}
+ {module==='outreach'&&<>{picker}<section className="panel"><h2>Email Marketing</h2><p>Use verified, eligible contacts to prepare campaigns.</p><Link className="button" href="/email-marketing">Open Email Marketing →</Link></section><OutreachCentre leads={selectedLeads} exhibitionId={selected}/></>}
  {module==='reports'&&<>{picker}<CampaignReporting leads={selectedLeads} exhibitionId={selected} exhibitionName={current?.name||''}/></>}
- {module==='pipeline'&&<>{picker}<SalesPipeline leads={selectedLeads} exhibitionId={selected}/></>}
+ {module==='pipeline'&&<>{picker}<section className="panel"><h2>Sales tools</h2><p>Manage your projects and use the sales assistant.</p><Link className="button" href="/projects">Customers & Projects →</Link> <Link className="button" href="/ai-assistant">AI Sales Assistant →</Link></section><SalesPipeline leads={selectedLeads} exhibitionId={selected}/></>}
  {module==='projects'&&<CustomerProjects leads={leads}/>}
  {module==='email-marketing'&&<>{picker}<EmailMarketing leads={selectedLeads} exhibitionId={selected}/><ResendTest/></>}
  {module==='campaigns'&&<CampaignManager leads={selectedLeads.filter(l=>!l.outreach_opt_out)}/>}
