@@ -88,6 +88,28 @@ function field(html: string, label: string): string {
   return first(html, pattern);
 }
 
+function parseHrSummitProfile(html: string, source: string): Profile {
+  const body = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+  const main = body.match(/<h[1-3]\b[^>]*>\s*Find us at the event\s*<\/h[1-3]>/i);
+  const companyHeadings = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
+    .map(m => clean(m[1])).filter(Boolean);
+  const company_name = companyHeadings.find(x =>
+    !/^(find us at the event|meet |exhibitors?|stand number|hrse)/i.test(x)
+  ) || clean(meta(html, "og:title")).split("|")[0].trim();
+  // Search the exhibitor's own "Find us at the event" block only, not
+  // unrelated navigation, footer or embedded event promotion data.
+  const section = main ? body.slice(main.index!, main.index! + 5000) : "";
+  const standLabel = section.search(/stand\s*number/i);
+  const afterLabel = standLabel >= 0 ? clean(section.slice(standLabel, standLabel + 500)) : "";
+  const standMatch = afterLabel.match(/stand\s*number\s*[:\-]?\s*([A-Z]{1,3}\s*[-]?\s*\d{1,4}[A-Z]?)/i);
+  const stand = standMatch ? standMatch[1].replace(/\s+/g, "").toUpperCase() : "";
+  const descriptionCandidate = meta(html, "description");
+  const description = /organisation profile for|\|\s*HRSE|hr summit.*expo/i.test(descriptionCandidate)
+    ? "" : descriptionCandidate;
+  return {company_name, country:"", hall:"", stand, website:"", description, profile_url:source};
+}
+
 function parseProfile(html: string, source: string): Profile {
   const company_name =
     first(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
@@ -431,7 +453,7 @@ export async function POST(request: NextRequest) {
     }
 
     const page = await fetchProfile(profile);
-    const result = parseProfile(page.html, page.source);
+    const result = hrProfile ? parseHrSummitProfile(page.html, page.source) : parseProfile(page.html, page.source);
 
     return NextResponse.json({
       profile: result,
