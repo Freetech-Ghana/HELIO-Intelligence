@@ -15,6 +15,7 @@ import EmailMarketing from './EmailMarketing';
 import ResendTest from './ResendTest';
 import CampaignManager from './CampaignManager';
 import ResearchControl from './ResearchControl';
+import LeadResearchAssistant from './LeadResearchAssistant';
 
 type Event={id:string;name:string;edition_year:number;directory_url:string|null;directory_total:number|null;source_number?:number|null;source_date_text?:string|null;venue?:string|null;hall?:string|null;date_verified?:boolean;research_status?:string;discovery_start_date?:string|null;discovery_end_date?:string|null;discovery_city?:string|null;discovery_event_url?:string|null;discovery_source_url?:string|null};
 type Lead={id:string;exhibition_id:string;company_name:string;country:string|null;description:string|null;website:string|null;email:string|null;phone:string|null;hall:string|null;stand:string|null;profile_url:string|null;contact_source_url:string|null;verification_status:string;participation_status:string;notes:string|null;outreach_opt_out?:boolean};
@@ -91,6 +92,6 @@ export default function Workspace({module}:{module:string}){
  {module==='projects'&&<CustomerProjects leads={leads}/>}
  {module==='email-marketing'&&<>{picker}<EmailMarketing leads={selectedLeads} exhibitionId={selected}/><ResendTest/></>}
  {module==='campaigns'&&<CampaignManager leads={selectedLeads.filter(l=>!l.outreach_opt_out)}/>}
- {module==='research'&&<>{picker}<ResearchControl event={current} leads={selectedLeads} onChanged={refresh}/><section className="panel"><h2>Research Coverage</h2><p>Counts reflect saved records, not automated directory coverage.</p><div className="coverage"><div><span>Published directory total</span><strong>{current?.directory_total??'Not provided'}</strong></div><div><span>Saved records</span><strong>{selectedLeads.length}</strong></div><div><span>Difference</span><strong>{current?.directory_total!=null?Math.max(0,current.directory_total-selectedLeads.length):'Unknown'}</strong></div></div></section></>}
+ {module==='research'&&<>{picker}<LeadResearchAssistant leads={selectedLeads} eventName={current?.name||''}/><ResearchControl event={current} leads={selectedLeads} onChanged={refresh}/><section className="panel"><h2>Research Coverage</h2><p>Counts reflect saved records, not automated directory coverage.</p><div className="coverage"><div><span>Published directory total</span><strong>{current?.directory_total??'Not provided'}</strong></div><div><span>Saved records</span><strong>{selectedLeads.length}</strong></div><div><span>Difference</span><strong>{current?.directory_total!=null?Math.max(0,current.directory_total-selectedLeads.length):'Unknown'}</strong></div></div></section></>}
  {msg&&<div className="toast" role="status">{msg}<button onClick={()=>setMsg('')}>×</button></div>}</main></div>;
 }
