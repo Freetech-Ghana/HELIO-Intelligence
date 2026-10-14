@@ -4,7 +4,7 @@ import {isIP} from 'node:net';
 export const runtime='nodejs';
 function publicIP(ip:string){if(isIP(ip)===4){const p=ip.split('.').map(Number);return !(p[0]===0||p[0]===10||p[0]===127||p[0]>=224||p[0]===169&&p[1]===254||p[0]===172&&p[1]>=16&&p[1]<=31||p[0]===192&&p[1]===168||p[0]===100&&p[1]>=64&&p[1]<=127||p[0]===192&&p[1]===0||p[0]===198&&[18,19].includes(p[1]));}return isIP(ip)===6&&!(/^(::1|::|f[cd]|fe[89ab]|ff|2001:db8)/i.test(ip));}
 function clean(s:string){return s.replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/g,"'").replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\s+/g,' ').trim();}
-function meta(html:string,name:string){const tags=html.match(/<meta\b[^>]*>/gi)||[];for(const tag of tags){if(new RegExp('(?:name|property)\\s*=\\s*["\\\']'+name+'["\\\']','i').test(tag)){const m=tag.match(/content\s*=\s*["']([^"']*)["']/i);if(m)return clean(m[1]);}}return '';}
+function meta(html:string,name:string){const tags=html.match(/<meta\b[^>]*>/gi)||[];for(const tag of tags){const key=tag.match(/(?:name|property)\s*=\s*["']([^"']+)["']/i)?.[1];if(key?.toLowerCase()!==name.toLowerCase())continue;const value=tag.match(/content\s*=\s*["']([^"']*)["']/i)?.[1];if(value)return clean(value);}return '';}
 export async function POST(request:Request){
  try{
  const token=request.headers.get('authorization')?.replace(/^Bearer\s+/i,'');if(!token)return Response.json({error:'Sign in required'},{status:401});
