@@ -23,7 +23,8 @@ async function getPage(url:URL,redirects=0):Promise<string>{
  const chosen=ips[0];
  return await new Promise<string>((resolve,reject)=>{
   const req=https.request(url,{method:'GET',timeout:8000,headers:{'User-Agent':'HELIOContactResearch/1.0','Accept':'text/html,text/plain'},lookup:(_host,opts,cb)=>{if(opts.all)cb(null,[{address:chosen.address,family:chosen.family}]);else cb(null,chosen.address,chosen.family)}},res=>{
-   if([301,302,303,307,308].includes(res.statusCode||0)){const location=res.headers.location;res.resume();if(!location||redirects>=3){reject(Error('Too many or invalid HTTPS redirects'));return}let next:URL;try{next=new URL(location,url)}catch{reject(Error('Invalid redirect URL'));return}if(!validWebsite(next.href)||next.origin!==url.origin){reject(Error('Redirect outside original HTTPS company website is not allowed'));return}getPage(next,redirects+1).then(resolve,reject);return}
+   if([301,302,303,307,308].includes(res.statusCode||0)){const location=res.headers.location;res.resume();if(!location||redirects>=3){reject(Error('Too many or invalid HTTPS redirects'));return}let next:URL;try{next=new URL(location,url)}catch{reject(Error('Invalid redirect URL'));return}const validNext=validWebsite(next.href);const canonical=(host:string)=>host.toLowerCase().replace(/^www\./,'');
+   if(!validNext||canonical(next.hostname)!==canonical(url.hostname)){reject(Error('Redirect outside original HTTPS company website is not allowed'));return}getPage(next,redirects+1).then(resolve,reject);return}
    if(res.statusCode!==200){res.resume();reject(Error('HTTP_STATUS_'+res.statusCode));return}
    const type=String(res.headers['content-type']||'');
    if(!/text\/(html|plain)/i.test(type)){res.resume();reject(Error('Not an HTML or text page'));return}
