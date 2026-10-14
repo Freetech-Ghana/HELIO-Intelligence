@@ -143,3 +143,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .workspace-nav .nav-group summary:hover{background:rgba(255,255,255,.08)}
 .workspace-nav .nav-group-items{padding:0 6px 7px 12px;display:grid;gap:2px}
 .workspace-nav .nav-group-items a{font-size:12px;padding:9px 10px}
+
+
+/* v2.9.1: Ensure grouped navigation scrolls independently of the sidebar. */
+@media (min-width:651px){
+ .shell > aside{height:100dvh;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+ .shell > aside > nav.workspace-nav{display:block!important;flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto!important;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b9a05e #242424;margin-top:16px;padding:0 6px 24px 0}
+ .shell > aside > nav.workspace-nav > a{display:block;margin-bottom:5px}
+ .shell > aside > nav.workspace-nav .nav-group{display:block}
+ .shell > aside > .brand,.shell > aside > .asidefoot{flex:0 0 auto}
+}
+@media (max-width:650px){
+ .shell > aside > nav.workspace-nav{display:block;max-height:55dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding-right:6px}
+ .shell > aside > nav.workspace-nav > a{display:block;margin-bottom:5px}
+}
