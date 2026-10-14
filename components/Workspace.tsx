@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
+import {useRouter,useSearchParams} from 'next/navigation';
 import {db} from '../lib/db';
 import ScheduleImport from './ScheduleImport';
 import ExhibitionDiscovery from './ExhibitionDiscovery';
@@ -35,6 +35,8 @@ const menu=[
 ];
 export default function Workspace({module}:{module:string}){
  const router=useRouter();
+ const searchParams=useSearchParams();
+ const requestedExhibitionId=searchParams.get('exhibition');
  const[session,setSession]=useState<any>(null),[loading,setLoading]=useState(true);
  const[events,setEvents]=useState<Event[]>([]),[leads,setLeads]=useState<Lead[]>([]),[selected,setSelected]=useState('');
  const[msg,setMsg]=useState(''),[query,setQuery]=useState(''),[countryFilter,setCountryFilter]=useState('all'),[statusFilter,setStatusFilter]=useState('all');
@@ -45,7 +47,19 @@ export default function Workspace({module}:{module:string}){
   const s=db();const[a,b]=await Promise.all([s.from('exhibitions').select('*').order('edition_year',{ascending:false}),s.from('exhibitors').select('*').order('created_at',{ascending:false})]);
   if(a.error||b.error){setMsg(a.error?.message||b.error?.message||'Could not load records');return;}
   setEvents((a.data||[]) as Event[]);setLeads((b.data||[]) as Lead[]);
-  setSelected(v=>v&&a.data?.some(x=>x.id===v)?v:(a.data?.[0]?.id||''));
+   setSelected(v=>{
+  const available=a.data||[];
+  if(
+   module==='pipeline' &&
+   requestedExhibitionId &&
+   available.some(x=>x.id===requestedExhibitionId)
+  ){
+   return requestedExhibitionId;
+  }
+  return v&&available.some(x=>x.id===v)
+   ?v
+   :(available[0]?.id||'');
+ });
  }
  useEffect(()=>{let active=true;const s=db();s.auth.getSession().then(async({data})=>{if(!active)return;setSession(data.session);setLoading(false);if(data.session)await refresh()});const{data:{subscription}}=s.auth.onAuthStateChange((_e,ss)=>setSession(ss));return()=>{active=false;subscription.unsubscribe()};},[]);
  const current=events.find(e=>e.id===selected);

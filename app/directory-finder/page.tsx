@@ -3,6 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {db} from '../../lib/db';
 import DirectoryFinder from '../../components/DirectoryFinder';
+import ExhibitorReviewPreview from '../../components/ExhibitorReviewPreview';
 type Event={id:string;name:string;edition_year:number;directory_url:string|null};
 export default function DirectoryFinderPage(){
  const [events,setEvents]=useState<Event[]>([]),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[loading,setLoading]=useState(true);
@@ -22,6 +23,7 @@ export default function DirectoryFinderPage(){
   <DirectoryFinder exhibitionId={selected} onSaved={refresh}/>
   </>}
   {message&&<p role="alert">{message}</p>}
-  <p>Exhibitor extraction and bulk importing are not enabled in this beta. Continue using the reviewed CSV import tool.</p>
+  <ExhibitorReviewPreview exhibitionId={selected} />
+<p>Exhibitor extraction and bulk importing are not enabled in this beta. Continue using the reviewed CSV import tool.</p>
  </main>;
 }

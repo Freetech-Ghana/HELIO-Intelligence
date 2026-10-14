@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import {db} from '../lib/db';
+import {useSearchParams} from 'next/navigation';
 type Lead={id:string;company_name:string;email:string|null};
 type Opp={id:string;exhibitor_id:string;title:string;service_type:string;stage:string;estimated_value:number;probability:number;expected_close_on:string|null;notes:string|null};
 type Item={description:string;quantity:number;unit_price:number};
@@ -11,14 +12,60 @@ const quoteStatuses=['draft','approved','sent_manually','accepted','declined','e
 const money=(n:number)=>new Intl.NumberFormat('en-AE',{style:'currency',currency:'AED'}).format(n);
 const date=()=>new Date().toISOString().slice(0,10);
 export default function SalesPipeline({leads,exhibitionId}:{leads:Lead[];exhibitionId:string}){
+ const searchParams = useSearchParams();
+ const requestedExhibitorId = searchParams.get('exhibitor');
  const [opps,setOpps]=useState<Opp[]>([]),[quotes,setQuotes]=useState<Quote[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[reload,setReload]=useState(0);
  const [leadId,setLeadId]=useState(''),[title,setTitle]=useState(''),[service,setService]=useState(services[0]),[value,setValue]=useState('0'),[probability,setProbability]=useState('20'),[closeDate,setCloseDate]=useState(''),[notes,setNotes]=useState('');
  const [selectedOpp,setSelectedOpp]=useState(''),[quoteId,setQuoteId]=useState(''),[customer,setCustomer]=useState(''),[quoteNumber,setQuoteNumber]=useState(''),[validUntil,setValidUntil]=useState(''),[discount,setDiscount]=useState('0'),[vat,setVat]=useState('5'),[terms,setTerms]=useState('Payment terms to be agreed in writing.'),[items,setItems]=useState<Item[]>([{description:'Exhibition stand design',quantity:1,unit_price:0}]);
  useEffect(()=>{let active=true;setOpps([]);setQuotes([]);setError('');setMessage('');if(!exhibitionId)return;setBusy(true);(async()=>{const s=db();const r=await s.from('helio_opportunities').select('*').eq('exhibition_id',exhibitionId).order('created_at',{ascending:false});if(!active)return;if(r.error){setError(r.error.message);setBusy(false);return}const o=(r.data||[]) as Opp[];setOpps(o);const ids=o.map(x=>x.id);if(ids.length){const q=await s.from('helio_quotations').select('*').in('opportunity_id',ids).order('created_at',{ascending:false});if(!active)return;if(q.error)setError(q.error.message);else setQuotes((q.data||[]) as Quote[])}setBusy(false)})();return()=>{active=false}},[exhibitionId,reload]);
- const selected=opps.find(x=>x.id===selectedOpp);const quote=quotes.find(x=>x.id===quoteId);
+ useEffect(()=>{
+  if (!requestedExhibitorId) return;
+
+  const matchingLead = leads.find(
+   lead => lead.id === requestedExhibitorId
+  );
+
+  if (matchingLead) {
+   setLeadId(matchingLead.id);
+  }
+ },[requestedExhibitorId,leads]); 
+const selected=opps.find(x=>x.id===selectedOpp);const quote=quotes.find(x=>x.id===quoteId);
  const totals=useMemo(()=>{const subtotal=items.reduce((s,x)=>s+Number(x.quantity||0)*Number(x.unit_price||0),0);const discounted=Math.max(0,subtotal-Number(discount||0));return {subtotal,vatAmount:discounted*Number(vat||0)/100,total:discounted*(1+Number(vat||0)/100)}},[items,discount,vat]);
  const forecast=opps.filter(x=>x.stage!=='lost').reduce((s,x)=>s+Number(x.estimated_value)*Number(x.probability)/100,0);
- async function addOpportunity(e:React.FormEvent){e.preventDefault();setError('');setMessage('');if(!leadId||!exhibitionId)return;const payload={exhibition_id:exhibitionId,exhibitor_id:leadId,title:title.trim(),service_type:service,estimated_value:Number(value),probability:Number(probability),expected_close_on:closeDate||null,notes:notes||null};const r=await db().from('helio_opportunities').insert(payload);if(r.error){setError(r.error.message);return}setMessage('Opportunity saved');setTitle('');setValue('0');setNotes('');setReload(v=>v+1)}
+ async function addOpportunity(e:React.FormEvent){e.preventDefault();setError('');setMessage('');if(!leadId||!exhibitionId)return;const payload={exhibition_id:exhibitionId,exhibitor_id:leadId,title:title.trim(),service_type:service,estimated_value:Number(value),probability:Number(probability),expected_close_on:closeDate||null,notes:notes||null};
+const {data:existing,error:checkError}=await db()
+ .from('helio_opportunities')
+ .select('id,title,stage')
+ .eq('exhibition_id',exhibitionId)
+ .eq('exhibitor_id',leadId)
+ .eq('service_type',service)
+ .not('stage','in','("won","lost")')
+ .limit(1);
+
+if(checkError){
+ setError('Could not check existing opportunities: '+checkError.message);
+ return;
+}
+
+if(existing && existing.length>0){
+ setError(
+  'An open opportunity already exists for this exhibitor and service: '+
+  existing[0].title+
+  '. Review the existing opportunity before creating another.'
+ );
+ return;
+}
+const r=await db().from('helio_opportunities').insert(payload);if(r.error){
+ if(r.error.code==='23505'){
+  setError(
+   'An open opportunity already exists for this exhibitor and service. '+
+   'Please review the existing opportunity before creating another.'
+  );
+ }else{
+  setError(r.error.message);
+ }
+ return;
+}setMessage('Opportunity saved');setTitle('');setValue('0');setNotes('');setReload(v=>v+1)}
  async function changeStage(o:Opp,stage:string){const r=await db().from('helio_opportunities').update({stage,updated_at:new Date().toISOString()}).eq('id',o.id);if(r.error)setError(r.error.message);else{setMessage('Stage updated');setReload(v=>v+1)}}
  function selectOpportunity(id:string){setSelectedOpp(id);setQuoteId('');const o=opps.find(x=>x.id===id);setCustomer(leads.find(l=>l.id===o?.exhibitor_id)?.company_name||'');setQuoteNumber('HELIO-'+Date.now().toString().slice(-10));setValidUntil('');setDiscount('0');setVat('5');setTerms('Payment terms to be agreed in writing.');setItems([{description:o?.service_type||services[0],quantity:1,unit_price:Number(o?.estimated_value||0)}])}
  function loadQuote(id:string){setQuoteId(id);const q=quotes.find(x=>x.id===id);if(!q)return;setSelectedOpp(q.opportunity_id);setCustomer(q.customer_name);setQuoteNumber(q.quote_number);setValidUntil(q.valid_until||'');setDiscount(String(q.discount_amount));setVat(String(q.vat_rate));setTerms(q.terms||'');setItems(q.line_items?.length?q.line_items:[{description:'Service',quantity:1,unit_price:0}])}
