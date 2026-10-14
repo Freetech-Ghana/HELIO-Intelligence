@@ -10,7 +10,9 @@ const HOSTS = new Set([
   "ism-me.com",
   "www.ism-me.com",
   "dwtc.com",
-  "www.dwtc.com"
+  "www.dwtc.com",
+  "informaconnect.com",
+  "www.informaconnect.com"
 ]);
 
 type Profile = {
