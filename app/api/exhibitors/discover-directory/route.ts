@@ -66,9 +66,10 @@ export async function POST(req:NextRequest){
   const seeds=[event.discovery_event_url,event.official_website,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
   let currentYearEvidence=false;
+  const evidenceUrls:string[]=[];
   for(const seed of [...new Set(seeds)].slice(0,3)){
    const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
-   try{const page=await getHtml(target);results.push(...candidates(page.html,page.url));if(isHr&&Number(event.edition_year)===2026&&/2026 sponsors\s*(?:&|and|&#38;)\s*exhibitors/i.test(page.html))currentYearEvidence=true}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
+   try{const page=await getHtml(target);results.push(...candidates(page.html,page.url));if(isHr&&Number(event.edition_year)===2026&&/(?:2026.{0,100}(?:sponsors|exhibitors)|(?:sponsors|exhibitors).{0,100}2026)/i.test(page.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '))){currentYearEvidence=true;evidenceUrls.push(page.url)}}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
   }
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
   if (/hr summit|hrse|hr summit & expo/i.test(event.name||'')) {
@@ -83,9 +84,19 @@ export async function POST(req:NextRequest){
     return {...item,edition:listedYear,status:listedYear&&listedYear!==year?'historical':listedYear===year?'current_candidate':'unverified'};
   });
   const unique=[...new Map(tagged.sort((a,b)=>b.score-a.score).map(x=>[x.url,x])).values()];
+  // Follow only a few same-host candidate pages to check edition-specific headings.
+  for(const item of unique.filter(x=>x.status==='unverified'&&/sponsors?-and-exhibitors|exhibitor-list/i.test(new URL(x.url).pathname)).slice(0,3)){
+    try{
+      const page=await getHtml(new URL(item.url));
+      const headingText=(page.html.match(/<h[1-4][^>]*>[\s\S]*?<\/h[1-4]>/gi)||[]).join(' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
+      if(new RegExp('(?:^|\\W)'+year+'(?:\\W|$)').test(headingText)&&/exhibitors/i.test(headingText)){
+        currentYearEvidence=true;evidenceUrls.push(page.url);
+      }
+    }catch(e){errors.push('Could not inspect candidate listing: '+(e instanceof Error?e.message:'Source unavailable'))}
+  }
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
