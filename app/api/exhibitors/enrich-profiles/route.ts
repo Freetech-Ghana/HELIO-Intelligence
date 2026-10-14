@@ -144,6 +144,31 @@ function parseHrSummitProfile(html: string, source: string): Profile {
       }
     }
   }
+  // Also inspect the exhibitor's event-details section for a labeled website.
+  // Do not treat unrelated external links or social accounts as official sites.
+  if (!website && sectionHeading) {
+    const start = sectionHeading.index! + sectionHeading[0].length;
+    const end = headings.find(h => h.index! >= start)?.index ?? Math.min(start + 5000, body.length);
+    const section = body.slice(start, end);
+    for (const match of section.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+      const href = match[1].match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+      if (!href) continue;
+      const label = clean(match[2]);
+      const attrs = clean(match[1]);
+      const prefix = clean(section.slice(Math.max(0, match.index! - 180), match.index!));
+      if (!/\b(website|company website|visit website|official website)\b/i.test(label + " " + attrs + " " + prefix.slice(-90))) continue;
+      try {
+        const candidate = new URL(decode(href), source);
+        if (candidate.protocol !== "https:" || candidate.username || candidate.password || candidate.port ||
+            HOSTS.has(candidate.hostname.toLowerCase()) ||
+            /(^|\.)(facebook\.com|instagram\.com|linkedin\.com|twitter\.com|x\.com|youtube\.com|tiktok\.com|wa\.me|whatsapp\.com|bit\.ly)$/i.test(candidate.hostname)) continue;
+        website = candidate.href;
+        break;
+      } catch {
+        // Ignore malformed URLs.
+      }
+    }
+  }
   // Preserve exact label/value evidence for review; never silently resolve conflicts.
   const standEvidence: {value: string; context: string; source_url: string}[] = [];
   if (sectionHeading) {
