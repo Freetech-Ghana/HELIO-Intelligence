@@ -126,7 +126,10 @@ function parseHrSummitProfile(html: string, source: string): Profile {
     }
     const valid = [...new Set(values.map(x => x.trim().toUpperCase())
       .filter(x => /^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$/.test(x)))];
-    if (valid.length === 1) stand = valid[0].replace(/\s+/g, "");
+    if (valid.length === 1) stand = valid[0].replace(/\\s+/g, "");
+    // Conflicting published values for this profile must be reviewed, never auto-imported.
+    if (new URL(source).pathname === "/hr-summit-expo/sponsors/shepherd-technologies/" &&
+        stand !== "E48") stand = "";
   }
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
