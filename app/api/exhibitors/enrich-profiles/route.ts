@@ -540,7 +540,31 @@ export async function POST(request: NextRequest) {
     const page = await fetchProfile(profile);
     const result = hrProfile ? parseHrSummitProfile(page.html, page.source) : parseProfile(page.html, page.source);
 
+    // Completeness is not authenticity: preserve missing fields rather than inventing values.
+    const fieldNames = ["company_name","country","hall","stand","website","description"] as const;
+    const foundFields = fieldNames.filter(key => Boolean(result[key]?.trim()));
+    const missingFields = fieldNames.filter(key => !result[key]?.trim());
+    const standConflict = result.evidence?.stand_status === "conflicting_requires_review";
+    const sourceHost = new URL(page.source).hostname;
+    const quality = {
+      source_url: page.source,
+      source_host: sourceHost,
+      source_type: "approved_exhibition_profile",
+      fetched_at: new Date().toISOString(),
+      fields_found: foundFields,
+      fields_missing: missingFields,
+      completeness_percent: Math.round(foundFields.length / fieldNames.length * 100),
+      participation_status: "unverified",
+      verification_status: standConflict ? "conflicting_evidence" : "requires_manual_review",
+      warnings: [
+        ...(standConflict ? ["Conflicting stand numbers; do not accept a stand without manual evidence review."] : []),
+        ...(!result.company_name ? ["No reliable company name extracted."] : []),
+        ...(!result.website ? ["Company website not found in a labeled profile link."] : []),
+        "An official directory listing does not independently establish company registration, current participation, or permission to email."
+      ]
+    };
     return NextResponse.json({
+      quality,
       profile: result,
       notice: "Unverified profile details for manual review. Nothing was saved."
     });
