@@ -107,14 +107,10 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const company_name = nameFromMeet || precedingName ||
     (/^(?!informa helps).+/i.test(metaName) ? metaName : "");
 
-  let stand = "";
-  if (sectionHeading) {
-    const followingHeading = headings.find(h => h.index! > sectionHeading.index!);
-    const section = body.slice(sectionHeading.index! + sectionHeading[0].length,
-      followingHeading ? followingHeading.index! : sectionHeading.index! + 1500);
-    const match = clean(section).match(/\bStand\s*number\s*[:\-]?\s*([A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?)\b/i);
-    if (match) stand = match[1].replace(/\s+/g, "").toUpperCase();
-  }
+  // Stand values in the page HTML have produced conflicting results (D40 vs E48).
+  // Fail closed rather than writing an unreliable stand into the lead database.
+  // Keep stand empty until we can reliably identify the exhibitor-specific field.
+  const stand = "";
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
   return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source};
