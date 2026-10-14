@@ -40,6 +40,30 @@ function candidates(html:string,base:string){
  }
  return [...new Map(result.sort((a,b)=>b.score-a.score).map(x=>[x.url,x])).values()].slice(0,12);
 }
+// A bounded breadth-first scan of navigational pages on already-approved official hosts.
+function navigationLinks(html:string,base:string){
+ const found:{url:string;score:number}[]=[];
+ for(const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)){
+  let u:URL;try{u=new URL(m[1].replace(/&amp;/g,'&'),base)}catch{continue}
+  if(!safe(u.href)||u.hostname!==new URL(base).hostname)continue;
+  if(/\.(?:pdf|zip|png|jpg|svg|css|js)$/i.test(u.pathname))continue;
+  const label=m[2].replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+  const terms=(u.pathname+' '+label).toLowerCase();
+  if(/login|register|privacy|terms|contact|tickets|book.a.stand|become.an.exhibitor/i.test(terms))continue;
+  if(!/exhibit|visitor|event|show|directory|sponsor|partner|brand|company|about/i.test(terms))continue;
+  const score=/exhibitor|directory|sponsor|brand|company/i.test(terms)?3:1;
+  u.hash='';found.push({url:u.href,score});
+ }
+ return [...new Map(found.sort((a,b)=>b.score-a.score).map(x=>[x.url,x])).values()].slice(0,12);
+}
+function platformSignals(html:string){
+ const signals:string[]=[];
+ if(/__NEXT_DATA__|_next\/static/i.test(html))signals.push('Next.js rendered or hydrated');
+ if(/__NUXT__|_nuxt\//i.test(html))signals.push('Nuxt rendered or hydrated');
+ if(/id=["'](?:root|app)["'][^>]*>\s*<\/div>/i.test(html))signals.push('JavaScript app shell');
+ if(/iframe\b/i.test(html))signals.push('Embedded iframe');
+ return signals;
+}
 export async function POST(req:NextRequest){
  try{
   const bearer=req.headers.get('authorization')||'';
@@ -70,14 +94,28 @@ export async function POST(req:NextRequest){
   const visited=new Set<string>();let pagesChecked=0;
   const unsupportedSeedHosts:string[]=[];
   const checkedHosts=new Set<string>();
+  const detectedPlatforms=new Set<string>();
   let currentYearEvidence=false;
   const evidenceUrls:string[]=[];
   for(const seed of [...new Set(seeds)].slice(0,3)){
    const target=safe(seed);if(!target){try{const host=new URL(seed).hostname;unsupportedSeedHosts.push(host);errors.push('Official event or directory host needs review and a supported adapter: '+host)}catch{errors.push('Invalid event website URL')}continue}
-   try{const page=await getHtml(target);visited.add(page.url);checkedHosts.add(new URL(page.url).hostname);pagesChecked++;results.push(...candidates(page.html,page.url));
-    // Inspect a bounded set of same-host candidate directory pages; never crawl arbitrary sites.
-    const follow=candidates(page.html,page.url).filter(c=>c.score>=60).slice(0,5);
-    for(const link of follow){if(visited.has(link.url))continue;visited.add(link.url);try{const nested=await getHtml(new URL(link.url));pagesChecked++;checkedHosts.add(new URL(nested.url).hostname);results.push(...candidates(nested.html,nested.url));}catch(e){errors.push('Directory candidate '+new URL(link.url).pathname+': '+(e instanceof Error?e.message:'Unavailable'));}}
+   try{const page=await getHtml(target);visited.add(page.url);checkedHosts.add(new URL(page.url).hostname);pagesChecked++;
+    platformSignals(page.html).forEach(x=>detectedPlatforms.add(x));
+    results.push(...candidates(page.html,page.url));
+    // Visit up to eight same-host navigation pages, prioritizing exhibitor-related links.
+    // Respect robots rules, approved hosts, timeouts and bounded page size on every request.
+    const queue=navigationLinks(page.html,page.url).slice(0,8);
+    for(const link of queue){
+      if(visited.has(link.url))continue;
+      visited.add(link.url);
+      try{
+        const nested=await getHtml(new URL(link.url));pagesChecked++;
+        checkedHosts.add(new URL(nested.url).hostname);
+        platformSignals(nested.html).forEach(x=>detectedPlatforms.add(x));
+        results.push(...candidates(nested.html,nested.url));
+        if(DIRECTORY_TERMS.test(link.url))results.push({url:link.url,label:'Official website directory candidate (inspect edition)',score:55});
+      }catch(e){errors.push('Navigation '+new URL(link.url).pathname+': '+(e instanceof Error?e.message:'Unavailable'))}
+    }
     if(isHr&&Number(event.edition_year)===2026&&/(?:2026.{0,100}(?:sponsors|exhibitors)|(?:sponsors|exhibitors).{0,100}2026)/i.test(page.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '))){currentYearEvidence=true;evidenceUrls.push(page.url)}}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
   }
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
@@ -106,6 +144,6 @@ export async function POST(req:NextRequest){
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],unsupportedSeedHosts:[...new Set(unsupportedSeedHosts)],suggestedSearches,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],detectedPlatforms:[...detectedPlatforms],unsupportedSeedHosts:[...new Set(unsupportedSeedHosts)],suggestedSearches,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
