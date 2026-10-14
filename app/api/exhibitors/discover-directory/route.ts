@@ -78,7 +78,7 @@ export async function POST(req:NextRequest){
   if(/gulf\s*host/i.test(event.name||''))results.push({url:'https://www.gulfhost.ae/exhibitors',label:'GulfHost official exhibitor directory candidate',score:110});
   const year=Number(event.edition_year);
   const tagged=results.map(item=>{
-    const match=new URL(item.url).pathname.match(/(?:^|\\/)(20\\d{2})(?:-|\\/|$)/);
+    const match=new URL(item.url).pathname.match(new RegExp('(?:^|/)(20[0-9]{2})(?:-|/|$)'));
     const listedYear=match?Number(match[1]):null;
     return {...item,edition:listedYear,status:listedYear&&listedYear!==year?'historical':listedYear===year?'current_candidate':'unverified'};
   });
