@@ -16,6 +16,7 @@ type EnrichedExhibitor = Exhibitor & {
   description: string;
   evidence?: {stand_status:string;stand_candidates:{value:string;context:string;source_url:string}[];source_url:string};
   checked_at?: string;
+  quality?: {source_url:string;source_host:string;fields_found:string[];fields_missing:string[];completeness_percent:number;participation_status:string;verification_status:string;warnings:string[]};
 };
 
 export default function ExhibitorReviewPreview({
@@ -188,7 +189,8 @@ setEnrichedProfiles(previous => ({
     website: profile.website || "",
     description: profile.description || "",
     evidence: profile.evidence,
-    checked_at: new Date().toISOString()
+    checked_at: new Date().toISOString(),
+    quality: result.quality
   }
 }));
 
@@ -201,7 +203,11 @@ setEnrichedProfiles(previous => ({
       `Description: ${profile.description || "Not available"}`,
       `Stand evidence status: ${profile.evidence?.stand_status || "Not provided"}`,
       `Stand evidence: ${(profile.evidence?.stand_candidates || []).map((x: {value:string;context:string}) => x.value + " [" + x.context + "]").join("; ") || "None found"}`,
-      `Source: ${profile.profile_url || exhibitor.profile_url}`
+      `Source: ${profile.profile_url || exhibitor.profile_url}`,
+      `Completeness: ${result.quality?.completeness_percent ?? "Not assessed"}% (not a legitimacy score)`,
+      `Missing fields: ${result.quality?.fields_missing?.join(", ") || "None reported"}`,
+      `Verification: ${result.quality?.verification_status || "Manual review required"}`,
+      `Warnings: ${result.quality?.warnings?.join(" | ") || "Manual source verification required"}`
     ];
 
     setEnrichMessage(details.join("\n"));
@@ -371,7 +377,8 @@ setApprovedProfiles(previous =>
             website: profile.website || "",
             description: profile.description || "",
             evidence: profile.evidence,
-            checked_at: new Date().toISOString()
+            checked_at: new Date().toISOString(),
+            quality: result.quality
           }
         }));
 
