@@ -1,16 +1,18 @@
 "use client";
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
+import {useSearchParams} from 'next/navigation';
 import {db} from '../../lib/db';
 import DirectoryFinder from '../../components/DirectoryFinder';
 import ExhibitorReviewPreview from '../../components/ExhibitorReviewPreview';
 type Event={id:string;name:string;edition_year:number;directory_url:string|null};
 export default function DirectoryFinderPage(){
+ const searchParams=useSearchParams();const requestedExhibition=searchParams.get('exhibition');
  const [events,setEvents]=useState<Event[]>([]),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[loading,setLoading]=useState(true);
  async function refresh(){
   const {data,error}=await db().from('exhibitions').select('id,name,edition_year,directory_url').order('name');
   if(error)setMessage(error.message);
-  else {setEvents((data||[]) as Event[]);setSelected(v=>v||(data?.[0]?.id||''))}
+  else {setEvents((data||[]) as Event[]);setSelected(v=>requestedExhibition&&(data||[]).some(e=>e.id===requestedExhibition)?requestedExhibition:(v&&(data||[]).some(e=>e.id===v)?v:(data?.[0]?.id||'')))}
  }
  useEffect(()=>{db().auth.getSession().then(async({data})=>{if(!data.session)setMessage('Please sign in first');else await refresh();setLoading(false)})},[]);
  const current=events.find(e=>e.id===selected);
@@ -24,6 +26,6 @@ export default function DirectoryFinderPage(){
   </>}
   {message&&<p role="alert">{message}</p>}
   <ExhibitorReviewPreview exhibitionId={selected} />
-<p>Exhibitor extraction and bulk importing are not enabled in this beta. Continue using the reviewed CSV import tool.</p>
+<p>Directory preview and reviewed imports are available above where supported by the official source. Some directories require manual input or are inaccessible to automated tools; full directory coverage is not guaranteed.</p>
  </main>;
 }
