@@ -1,12 +1,13 @@
 "use client";
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
+import {Suspense} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {db} from '../../lib/db';
 import DirectoryFinder from '../../components/DirectoryFinder';
 import ExhibitorReviewPreview from '../../components/ExhibitorReviewPreview';
 type Event={id:string;name:string;edition_year:number;directory_url:string|null};
-export default function DirectoryFinderPage(){
+function DirectoryFinderContent(){
  const searchParams=useSearchParams();const requestedExhibition=searchParams.get('exhibition');
  const [events,setEvents]=useState<Event[]>([]),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[loading,setLoading]=useState(true);
  async function refresh(){
@@ -29,3 +30,5 @@ export default function DirectoryFinderPage(){
 <p>Directory preview and reviewed imports are available above where supported by the official source. Some directories require manual input or are inaccessible to automated tools; full directory coverage is not guaranteed.</p>
  </main>;
 }
+
+export default function DirectoryFinderPage(){return <Suspense fallback={<main style={{padding:24}}>Loading exhibition directory...</main>}><DirectoryFinderContent/></Suspense>}
