@@ -33,3 +33,49 @@ aside nav a.active, aside nav a[aria-current="page"] {background:rgba(255,255,25
   aside .asidefoot{flex-shrink:0;padding-top:12px;border-top:1px solid #333;}
   aside .brand{flex-shrink:0;}
 }
+
+
+/* HELIO v2.6: unified premium workspace treatment */
+:root{--helio-gold:#fbb715;--surface:#fff;--muted:#667387;--stroke:#e8e9ec;--ink:#171b25}
+body{background:linear-gradient(145deg,#f5f6f8 0%,#fbfaf6 65%,#f6f7fa 100%);color:var(--ink);font-family:Inter,"Segoe UI",Arial,sans-serif;line-height:1.5}
+.shell aside{background:linear-gradient(180deg,#17191f,#0d1017);box-shadow:8px 0 32px #1018270a;border-right:1px solid #262a32}
+.brand-logo{border-radius:12px;padding:10px;box-shadow:0 8px 22px #0002}
+aside nav{gap:5px}
+aside nav a{border-radius:10px;transition:background .15s ease,color .15s ease;border:1px solid transparent}
+aside nav a:hover{background:#282b32;color:white}
+aside nav a.active,aside nav a[aria-current="page"]{background:linear-gradient(90deg,#3c3420,#292b2e);border-color:#65532b;color:#ffd773;box-shadow:inset 3px 0 #fbb715}
+.shell main{padding-top:34px}
+.shell header{padding-bottom:20px;border-bottom:1px solid #e7e9ec;margin-bottom:25px;align-items:center}
+.shell header h1{font-size:clamp(25px,2.4vw,35px);font-weight:800;letter-spacing:-.8px}
+.shell header p{font-size:14px;color:#697486}
+.eyebrow{font-weight:800;color:#aa7900;letter-spacing:1.6px}
+.panel,.metric{border:1px solid var(--stroke);border-radius:16px;box-shadow:0 7px 28px #1d29390a}
+.panel{padding:clamp(18px,2vw,28px)}
+.panel h2{font-size:21px;letter-spacing:-.45px}
+.metric{background:linear-gradient(155deg,#fff 60%,#fffcf2);padding:20px}
+.metric strong{font-weight:800;color:#171b25;letter-spacing:-1px}
+button,.button,.auth .button{border-radius:9px;transition:transform .12s ease,box-shadow .12s ease;box-shadow:0 2px 7px #c48a1314}
+button:not(:disabled):hover,.button:hover{transform:translateY(-1px);box-shadow:0 5px 13px #c48a1329}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #d69a17;outline-offset:2px}
+.panel input,.panel select,.panel textarea{border-radius:9px;border:1px solid #d9dfe7;background:#fff;color:#202b39}
+.panel label{color:#3c485a}
+.tablewrap{border:1px solid #edf0f4;border-radius:12px;overflow:auto;margin-top:14px}
+.tablewrap th{background:#f8f9fb;color:#556174;white-space:nowrap}
+.tablewrap td{vertical-align:middle}
+.tablewrap tbody tr:hover{background:#fffdf6}
+.revieweditor{background:#fafbfc;border-color:#e3e7ec;border-radius:14px}
+.score-tag{display:inline-flex;align-items:center;white-space:nowrap;background:#fff6da;color:#77570d;border:1px solid #f3df9f;padding:8px 12px;border-radius:99px;font-size:12px;font-weight:700}
+.score-controls{display:grid;grid-template-columns:minmax(180px,2fr) repeat(2,minmax(130px,1fr));gap:14px;margin:20px 0}
+.score-controls label{display:grid;gap:6px;font-size:12px;font-weight:700}
+.score-controls input,.score-controls select{width:100%;padding:10px 12px}
+.score-number{font-size:22px;color:#252c39}
+.score-meta{display:block;font-size:11px;color:#7b8798;margin-top:3px}
+.score-track{width:100px;max-width:100%;height:6px;border-radius:10px;background:#e9edf2;margin-top:7px;overflow:hidden}
+.score-track span{display:block;height:100%;background:linear-gradient(90deg,#c8920c,#fbb715);border-radius:10px}
+.priority-pill{display:inline-block;padding:6px 11px;border-radius:99px;font-size:11px;font-weight:800}
+.priority-high{background:#e8f6ed;color:#206c3b}
+.priority-medium{background:#fff3d6;color:#94670c}
+.priority-low{background:#eef1f5;color:#526074}
+.score-disclaimer{margin-top:18px;font-size:12px;line-height:1.7}
+@media(max-width:900px){.score-controls{grid-template-columns:1fr 1fr}.score-controls label:first-child{grid-column:1/-1}}
+@media(max-width:650px){.shell header{align-items:flex-start;flex-wrap:wrap}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.score-controls{grid-template-columns:1fr}.score-controls label:first-child{grid-column:auto}.panelhead{flex-wrap:wrap}.metric{padding:14px}.metric strong{font-size:26px}}
