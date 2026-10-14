@@ -107,10 +107,27 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const company_name = nameFromMeet || precedingName ||
     (/^(?!informa helps).+/i.test(metaName) ? metaName : "");
 
-  // Stand values in the page HTML have produced conflicting results (D40 vs E48).
-  // Fail closed rather than writing an unreliable stand into the lead database.
-  // Keep stand empty until we can reliably identify the exhibitor-specific field.
-  const stand = "";
+  // Only parse the stand in the exhibitor's own "Find us at the event" section.
+  // The label and value are separate list items on Informa Connect pages.
+  let stand = "";
+  if (sectionHeading) {
+    const afterHeading = body.slice(sectionHeading.index! + sectionHeading[0].length);
+    const nextHeading = afterHeading.search(/<h[1-6]\b/i);
+    const section = nextHeading >= 0 ? afterHeading.slice(0, nextHeading) : afterHeading.slice(0, 2500);
+    const listItems = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+      .map(m => clean(m[1]));
+    const values: string[] = [];
+    for (let i = 0; i < listItems.length; i++) {
+      if (/^Stand\s*number\s*:?\s*$/i.test(listItems[i]) && i + 1 < listItems.length) {
+        values.push(listItems[i + 1]);
+      }
+      const inline = listItems[i].match(/^Stand\s*number\s*:\s*(.+)$/i);
+      if (inline) values.push(inline[1]);
+    }
+    const valid = [...new Set(values.map(x => x.trim().toUpperCase())
+      .filter(x => /^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$/.test(x)))];
+    if (valid.length === 1) stand = valid[0].replace(/\s+/g, "");
+  }
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
   return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source};
