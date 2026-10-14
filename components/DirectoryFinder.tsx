@@ -16,9 +16,10 @@ export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:str
    const r=await fetch('/api/exhibitors/discover-directory',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({exhibitionId})});
    const data=await r.json();if(!r.ok)throw Error(data.error||'Discovery failed');
    setResults(data.candidates||[]);
+   setInfo(`Checked ${data.pagesChecked??0} official pages across ${(data.checkedHosts||[]).length} approved hosts. ${(data.candidates||[]).length} directory candidates found. No exhibitors imported.`);
    const labels:Record<string,string>={current_directory_candidate:'Current-edition directory candidate found — verify before saving',current_exhibitor_section_found:'2026 exhibitor section found on the official event website; a complete directory URL has not been confirmed',historical_directory_only:'Only historical directory candidates found; do not import into the selected edition',current_directory_not_found:'No current-edition directory identified from the checked official pages'};
    setDiscoveryStatus(labels[data.discoveryStatus]||'Directory discovery completed; review source evidence.');
-   setInfo((data.candidates||[]).length?'Review the official source before saving. No companies have been imported.':'No approved directory links found. Use manual directory entry.');
+   if(!(data.candidates||[]).length)setDiagnostic('No directory found on supported sources. The event may use a separate platform or JavaScript directory. You can paste a reviewed official directory URL below, but unsupported hosts require a dedicated adapter.');
    if(data.errors?.length)setError(data.errors.join('; '));
    if(!(data.candidates||[]).length)setDiagnostic('No supported current-edition directory found. The official website may have a JavaScript-loaded directory, an unsupported host, or no published exhibitor list. This does not mean the exhibition has no exhibitors.');
    else if(!(data.candidates||[]).some((x:Candidate)=>x.status!=='historical'))setDiagnostic('Only historical directories were found. Do not import previous-year companies as current exhibitors.');
