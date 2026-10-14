@@ -23,7 +23,7 @@ async function getPage(url:URL){
  const chosen=ips[0];
  return await new Promise<string>((resolve,reject)=>{
   const req=https.request(url,{method:'GET',timeout:8000,headers:{'User-Agent':'HELIOContactResearch/1.0','Accept':'text/html,text/plain'},lookup:(_host,_opts,cb)=>cb(null,chosen.address,chosen.family)},res=>{
-   if(res.statusCode!==200){res.resume();reject(Error('Website returned HTTP '+res.statusCode));return}
+   if(res.statusCode!==200){res.resume();reject(Error('HTTP_STATUS_'+res.statusCode));return}
    const type=String(res.headers['content-type']||'');
    if(!/text\/(html|plain)/i.test(type)){res.resume();reject(Error('Not an HTML or text page'));return}
    if(Number(res.headers['content-length']||0)>250000){res.resume();reject(Error('Page exceeds 250 KB'));return}
@@ -51,7 +51,7 @@ export async function POST(req:NextRequest){
   if(lead.outreach_opt_out)return NextResponse.json({error:'Do Not Contact: automated research disabled'},{status:403});
   const base=validWebsite(lead.website||'');if(!base)return NextResponse.json({error:'Save a valid public HTTPS company website first'},{status:400});
   const robotsUrl=new URL('/robots.txt',base);let robots:string;
-  try{robots=await getPage(robotsUrl)}catch{return NextResponse.json({error:'Could not verify robots.txt; no pages fetched'},{status:422})}
+  try{robots=await getPage(robotsUrl)}catch(e){const reason=e instanceof Error?e.message:'Unknown error';if(reason==='HTTP_STATUS_404'||reason==='HTTP_STATUS_410'){robots='';}else{return NextResponse.json({error:reason==='HTTP_STATUS_401'||reason==='HTTP_STATUS_403'?'Website blocks automated access to robots.txt (HTTP '+reason.slice(-3)+'). No pages fetched.':'Could not verify robots.txt ('+(reason.startsWith('HTTP_STATUS_')?'HTTP '+reason.slice(-3):reason)+'). No pages fetched.'},{status:422})}}
   const paths=[base.pathname,'/contact','/contact-us','/en/contact'].filter((v,i,a)=>a.indexOf(v)===i);
   const results:{source_url:string;emails:string[]}[]=[];
   for(const path of paths.slice(0,4)){if(!allowed(robots,path))continue;try{const url=new URL(path,base);const html=await getPage(url);const found=emails(html);if(found.length)results.push({source_url:url.href,emails:found})}catch{/* skip inaccessible pages */}}
