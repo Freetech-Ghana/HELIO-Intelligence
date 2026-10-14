@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {db} from '../lib/db';
 type Event={id:string;name:string;edition_year:number;directory_url:string|null;directory_total:number|null;research_status?:string};
-type Lead={id:string;company_name:string;verification_status:string;profile_url:string|null;email:string|null;phone:string|null;contact_source_url:string|null;notes:string|null;participation_status:string;outreach_opt_out?:boolean|null;
+type Lead={id:string;company_name:string;country?:string|null;verification_status:string;profile_url:string|null;email:string|null;phone:string|null;contact_source_url:string|null;notes:string|null;participation_status:string;outreach_opt_out?:boolean|null;
 contact_research_status?:string;
 contact_verified_at?:string|null;
 contact_research_notes?:string|null;
