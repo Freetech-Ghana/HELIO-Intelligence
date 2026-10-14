@@ -108,6 +108,19 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const company_name = nameFromMeet || precedingName ||
     (/^(?!informa helps).+/i.test(metaName) ? metaName : "");
 
+  // Read the exhibitor's Profile section, not the organiser's global description.
+  const profileHeading = headings.find(h => /^Profile$/i.test(clean(h[2])) &&
+    (!sectionHeading || h.index! < sectionHeading.index!));
+  let description = "";
+  if (profileHeading) {
+    const start = profileHeading.index! + profileHeading[0].length;
+    const end = headings.find(h => h.index! >= start)?.index ?? Math.min(start + 6000, body.length);
+    const profileSection = body.slice(start, end);
+    const paragraphText = [...profileSection.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map(m => clean(m[1])).filter(Boolean);
+    description = paragraphText.join(" ").slice(0, 2000) || clean(profileSection).slice(0, 2000);
+    if (/^(organisation profile for|informa helps)/i.test(description)) description = "";
+  }
   // Preserve exact label/value evidence for review; never silently resolve conflicts.
   const standEvidence: {value: string; context: string; source_url: string}[] = [];
   if (sectionHeading) {
@@ -131,7 +144,7 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const evidence = {stand_candidates: standEvidence, stand_status: conflict ? "conflicting_requires_review" : stand ? "extracted_requires_review" : "not_found", source_url: source};
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
-  return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source, evidence};
+  return {company_name, country:"", hall:"", stand, website:"", description, profile_url:source, evidence};
 }
 
 function parseProfile(html: string, source: string): Profile {
