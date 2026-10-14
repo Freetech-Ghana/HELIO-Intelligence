@@ -109,7 +109,7 @@ export default function Workspace({module}:{module:string}){
  {module==='projects'&&<CustomerProjects leads={leads}/>}
  {module==='email-marketing'&&<>{picker}<EmailMarketing leads={selectedLeads} exhibitionId={selected}/><ResendTest/></>}
  {module==='campaigns'&&<CampaignManager leads={selectedLeads.filter(l=>!l.outreach_opt_out)}/>}
- {module==='lead-scoring'&&<>{picker}<LeadScoring leads={selectedLeads} eventName={current?.name||''}/></>}
+ {module==='lead-scoring'&&<>{picker}<LeadScoring leads={selectedLeads} eventName={current?.name||''} eventDate={current?.discovery_start_date} exhibitionId={selected}/></>}
  {module==='ai-assistant'&&<>{picker}<AISalesAssistant leads={selectedLeads} eventName={current?.name||''}/></>}
  {module==='research'&&<>{picker}<LeadResearchAssistant leads={selectedLeads} eventName={current?.name||''} exhibitionId={selected} onChanged={refresh}/><ResearchControl event={current} leads={selectedLeads} onChanged={refresh}/><section className="panel"><h2>Research Coverage</h2><p>Counts reflect saved records, not automated directory coverage.</p><div className="coverage"><div><span>Published directory total</span><strong>{current?.directory_total??'Not provided'}</strong></div><div><span>Saved records</span><strong>{selectedLeads.length}</strong></div><div><span>Difference</span><strong>{current?.directory_total!=null?Math.max(0,current.directory_total-selectedLeads.length):'Unknown'}</strong></div></div></section></>}
  {msg&&<div className="toast" role="status">{msg}<button onClick={()=>setMsg('')}>×</button></div>}</main></div>;
