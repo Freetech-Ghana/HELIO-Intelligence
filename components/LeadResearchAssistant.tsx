@@ -44,7 +44,10 @@ export default function LeadResearchAssistant({leads,eventName,exhibitionId,onCh
   if(!websiteCandidate||!safeUrl(websiteCandidate))return;
   setWebsiteBusy(true);setWebsiteMessage('');
   try{
-   const {data,error}=await db().from('exhibitors').update({website:websiteCandidate}).eq('id',lead.id).eq('owner_id',(await db().auth.getUser()).data.user?.id).eq('website',lead.website||'').select('id');
+   const {data:userData}=await db().auth.getUser();if(!userData.user)throw Error('Sign in required');
+   let query=db().from('exhibitors').update({website:websiteCandidate}).eq('id',lead.id).eq('owner_id',userData.user.id);
+   query=lead.website?query.eq('website',lead.website):query.is('website',null);
+   const {data,error}=await query.select('id');
    if(error)throw error;
    if(!data?.length)throw Error('Website was not saved. The record may have changed; refresh and try again.');
    setWebsiteCandidate('');setWebsiteMessage('Confirmed website saved. You can now run Research Contact.');await onChanged();
