@@ -31,6 +31,7 @@ const menu=[
  {id:"projects",label:"Customers & Projects",href:"/projects"},
  {id:"email-marketing",label:"Email Marketing",href:"/email-marketing"},
  {id:"campaigns",label:"Legacy Drafts",href:"/campaigns"},
+ {id:"evidence",label:"Evidence Centre",href:"/evidence"},
  {id:"research",label:"Research Status",href:"/research"}
 ];
 export default function Workspace({module}:{module:string}){
