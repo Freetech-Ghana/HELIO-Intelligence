@@ -9,7 +9,9 @@ const ALLOWED_HOSTS = new Set([
   "ism-me.com",
   "www.ism-me.com",
   "dwtc.com",
-  "www.dwtc.com"
+  "www.dwtc.com",
+  "informaconnect.com",
+  "www.informaconnect.com"
 ]);
 
 function approved(raw: string): URL | null {
@@ -243,7 +245,7 @@ export async function POST(request: NextRequest) {
 
     const { data: exhibition, error } = await db
       .from("exhibitions")
-      .select("id,name,directory_url")
+      .select("id,name,edition_year,directory_url")
       .eq("id", exhibitionId)
       .eq("owner_id", user.id)
       .single();
@@ -264,6 +266,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Historical exhibitor listings must never be silently assigned to another edition.
+    const pathYear = url.pathname.match(/(?:^|\/)(20\d{2})(?:-|\/|$)/);
+    if (pathYear && Number(pathYear[1]) !== Number(exhibition.edition_year)) {
+      return NextResponse.json({
+        error: `This listing is for ${pathYear[1]}, but the selected exhibition is ${exhibition.edition_year}. Select or create the matching historical exhibition edition before reading or importing.`
+      }, { status: 409 });
+    }
+    if (/informaconnect\.com$/i.test(url.hostname) && !/sponsors?-and-exhibitors|exhibitor-list|exhibitors/i.test(url.pathname)) {
+      return NextResponse.json({
+        error: "This Informa Connect URL is an event or sponsorship page, not an exhibitor listing. Save the edition-specific Sponsors and Exhibitors listing instead."
+      }, { status: 422 });
+    }
     const page = await readPage(url);
     const exhibitors = extract(page.html, page.source);
 
