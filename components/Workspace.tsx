@@ -64,7 +64,7 @@ export default function Workspace({module}:{module:string}){
  async function refresh(){
   const s=db();const[a,b]=await Promise.all([s.from('exhibitions').select('*').order('edition_year',{ascending:false}),s.from('exhibitors').select('*').order('created_at',{ascending:false})]);
   if(a.error||b.error){setMsg(a.error?.message||b.error?.message||'Could not load records');return;}
-  setEvents((a.data||[]) as Event[]);setLeads((b.data||[]) as Lead[]);
+  setEvents(([...(a.data||[])] as Event[]).sort((x,y)=>x.name.localeCompare(y.name,undefined,{sensitivity:'base',numeric:true})||y.edition_year-x.edition_year));setLeads((b.data||[]) as Lead[]);
    setSelected(v=>{
   const available=a.data||[];
   if(
