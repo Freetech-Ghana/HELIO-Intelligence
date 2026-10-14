@@ -49,7 +49,7 @@ const menu=[
 const menuGroups=[
  {label:"FIND & COLLECT",ids:["discovery","directory-finder"]},
  {label:"REVIEW & PREPARE",ids:["leads","research","lead-scoring"]},
- {label:"CONTACT & SELL",ids:["outreach","pipeline"]},
+ {label:"CONTACT & SELL",ids:["email-marketing","outreach","pipeline"]},
  {label:"ANALYZE",ids:["reports"]}
 ];
 const staffLabels:Record<string,string>={
@@ -58,8 +58,9 @@ const staffLabels:Record<string,string>={
  leads:"3. Exhibitor Database",
  research:"4. Verify Company Details",
  "lead-scoring":"5. Prioritize Leads",
- outreach:"6. Email & Follow-Up",
- pipeline:"7. Sales & Customers",
+ "email-marketing":"6. Email Marketing",
+ outreach:"7. Outreach & Follow-Up",
+ pipeline:"8. Sales & Customers",
  reports:"Reports"
 };
 const staffSteps=[
@@ -68,7 +69,8 @@ const staffSteps=[
  {id:"leads",label:"Review exhibitor database",description:"Search companies and identify missing details"},
  {id:"research",label:"Verify company details",description:"Research contacts and review supporting evidence"},
  {id:"lead-scoring",label:"Prioritize leads",description:"Score prospects and qualify opportunities"},
- {id:"outreach",label:"Contact and follow up",description:"Prepare outreach, email campaigns and next actions"},
+ {id:"email-marketing",label:"Email marketing",description:"Create campaigns, manage eligible recipients and export lists"},
+ {id:"outreach",label:"Outreach and follow-up",description:"Track personal follow-ups and next actions"},
  {id:"pipeline",label:"Manage sales and customers",description:"Track opportunities, quotations and projects"}
 ];
 export default function Workspace({module}:{module:string}){
