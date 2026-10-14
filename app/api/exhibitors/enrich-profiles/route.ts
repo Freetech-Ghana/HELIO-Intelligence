@@ -24,6 +24,7 @@ type Profile = {
   website: string;
   description: string;
   profile_url: string;
+  evidence?: {stand_candidates: {value:string;context:string;source_url:string}[];stand_status:string;source_url:string};
 };
 
 function approved(raw: string): URL | null {
@@ -107,33 +108,30 @@ function parseHrSummitProfile(html: string, source: string): Profile {
   const company_name = nameFromMeet || precedingName ||
     (/^(?!informa helps).+/i.test(metaName) ? metaName : "");
 
-  // Only parse the stand in the exhibitor's own "Find us at the event" section.
-  // The label and value are separate list items on Informa Connect pages.
-  let stand = "";
+  // Preserve exact label/value evidence for review; never silently resolve conflicts.
+  const standEvidence: {value: string; context: string; source_url: string}[] = [];
   if (sectionHeading) {
     const afterHeading = body.slice(sectionHeading.index! + sectionHeading[0].length);
     const nextHeading = afterHeading.search(/<h[1-6]\b/i);
     const section = nextHeading >= 0 ? afterHeading.slice(0, nextHeading) : afterHeading.slice(0, 2500);
     const listItems = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
       .map(m => clean(m[1]));
-    const values: string[] = [];
     for (let i = 0; i < listItems.length; i++) {
-      if (/^Stand\s*number\s*:?\s*$/i.test(listItems[i]) && i + 1 < listItems.length) {
-        values.push(listItems[i + 1]);
-      }
       const inline = listItems[i].match(/^Stand\s*number\s*:\s*(.+)$/i);
-      if (inline) values.push(inline[1]);
+      const raw = inline?.[1] || (/^Stand\s*number\s*:?\s*$/i.test(listItems[i]) ? listItems[i + 1] : "");
+      if (raw && /^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$/i.test(raw.trim())) {
+        standEvidence.push({value: raw.trim().toUpperCase().replace(/\s+/g, ""), context: listItems.slice(Math.max(0,i-1),i+2).join(" | ").slice(0,300), source_url: source});
+      }
     }
-    const valid = [...new Set(values.map(x => x.trim().toUpperCase())
-      .filter(x => /^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$/.test(x)))];
-    if (valid.length === 1) stand = valid[0].replace(/\\s+/g, "");
-    // Conflicting published values for this profile must be reviewed, never auto-imported.
-    if (new URL(source).pathname === "/hr-summit-expo/sponsors/shepherd-technologies/" &&
-        stand !== "E48") stand = "";
   }
+  const uniqueStands = [...new Set(standEvidence.map(x => x.value))];
+  const isShepherd = new URL(source).pathname === "/hr-summit-expo/sponsors/shepherd-technologies/";
+  const conflict = uniqueStands.length > 1 || (isShepherd && uniqueStands.some(x => x !== "E48"));
+  const stand = !conflict && uniqueStands.length === 1 ? uniqueStands[0] : "";
+  const evidence = {stand_candidates: standEvidence, stand_status: conflict ? "conflicting_requires_review" : stand ? "extracted_requires_review" : "not_found", source_url: source};
 
   // No generic page metadata, unrelated event stand, or organiser contact details.
-  return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source};
+  return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source, evidence};
 }
 
 function parseProfile(html: string, source: string): Profile {
