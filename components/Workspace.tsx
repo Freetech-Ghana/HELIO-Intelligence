@@ -57,7 +57,6 @@ export default function Workspace({module}:{module:string}){
    setSelected(v=>{
   const available=a.data||[];
   if(
-   module==='pipeline' &&
    requestedExhibitionId &&
    available.some(x=>x.id===requestedExhibitionId)
   ){
