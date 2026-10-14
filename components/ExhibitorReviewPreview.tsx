@@ -132,7 +132,7 @@ setEnrichedProfiles(previous => ({
     company_name: exhibitor.company_name,
     country: profile.country || exhibitor.country,
     hall: profile.hall || exhibitor.hall,
-    stand: profile.stand || exhibitor.stand,
+    stand: profile.stand || "",
     profile_url: exhibitor.profile_url,
     website: profile.website || "",
     description: profile.description || ""
@@ -146,6 +146,8 @@ setEnrichedProfiles(previous => ({
       `Stand: ${profile.stand || "Not available"}`,
       `Website: ${profile.website || "Not available"}`,
       `Description: ${profile.description || "Not available"}`,
+      `Stand evidence status: ${profile.evidence?.stand_status || "Not provided"}`,
+      `Stand evidence: ${(profile.evidence?.stand_candidates || []).map((x: {value:string;context:string}) => x.value + " [" + x.context + "]").join("; ") || "None found"}`,
       `Source: ${profile.profile_url || exhibitor.profile_url}`
     ];
 
