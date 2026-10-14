@@ -132,3 +132,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .global-pagination>div{display:flex;gap:9px}
 @media(max-width:1000px){.global-filters{grid-template-columns:1fr 1fr}.global-filters .global-check{grid-column:1/-1}}
 @media(max-width:650px){.global-filters{grid-template-columns:1fr}.global-filters .global-check{grid-column:auto}}
+
+
+/* Collapsible workspace navigation */
+.workspace-nav .nav-group{margin:6px 0;border:1px solid rgba(255,255,255,.11);border-radius:10px;overflow:hidden}
+.workspace-nav .nav-group summary{cursor:pointer;list-style:none;position:relative;padding:12px 28px 12px 12px;font-size:13px;font-weight:700;color:#f1e9d6;user-select:none}
+.workspace-nav .nav-group summary::-webkit-details-marker{display:none}
+.workspace-nav .nav-group summary::after{content:"⌄";position:absolute;right:12px;top:10px;transition:transform .2s}
+.workspace-nav .nav-group[open] summary::after{transform:rotate(180deg)}
+.workspace-nav .nav-group summary:hover{background:rgba(255,255,255,.08)}
+.workspace-nav .nav-group-items{padding:0 6px 7px 12px;display:grid;gap:2px}
+.workspace-nav .nav-group-items a{font-size:12px;padding:9px 10px}
