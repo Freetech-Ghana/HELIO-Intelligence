@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+const MAX_PROFILE_BYTES = 3_000_000;
 
 const HOSTS = new Set([
   "gulfhost.ae",
@@ -312,7 +313,7 @@ async function fetchProfile(initial: URL) {
       throw Error("Profile did not return HTML");
     }
 
-    if (Number(response.headers.get("content-length") || 0) > 500000) {
+    if (Number(response.headers.get("content-length") || 0) > MAX_PROFILE_BYTES) {
       throw Error("Profile page exceeds size limit");
     }
 
@@ -328,7 +329,7 @@ async function fetchProfile(initial: URL) {
         if (done) break;
 
         total += value.byteLength;
-        if (total > 500000) {
+        if (total > MAX_PROFILE_BYTES) {
           throw Error("Profile page exceeds size limit");
         }
         chunks.push(Buffer.from(value));
