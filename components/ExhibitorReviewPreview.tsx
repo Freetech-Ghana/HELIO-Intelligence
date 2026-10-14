@@ -81,6 +81,54 @@ const [approvedProfiles, setApprovedProfiles] = useState<number[]>([]);
 const [enrichMessage, setEnrichMessage] = useState("");
 
 const [reviewNotes, setReviewNotes] = useState<Record<number,string>>({});
+const [savingEvidence, setSavingEvidence] = useState<number | null>(null);
+const [evidenceMessages, setEvidenceMessages] = useState<Record<number,string>>({});
+
+async function saveEvidence(index: number) {
+  const profile = enrichedProfiles[index];
+  if (!profile || !exhibitionId) return;
+  setSavingEvidence(index);
+  setEvidenceMessages(previous => ({...previous, [index]: ""}));
+  try {
+    const client = db();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (authError || !user) throw new Error("Please sign in first.");
+    const { data: exhibition, error: exhibitionError } = await client
+      .from("exhibitions").select("name,edition_year").eq("id", exhibitionId)
+      .eq("owner_id", user.id).single();
+    if (exhibitionError || !exhibition) throw new Error("Exhibition could not be verified.");
+    const notes = reviewNotes[index] || "";
+    const source = profile.profile_url;
+    const status = profile.evidence?.stand_status === "conflicting_requires_review"
+      ? "conflicting" : "pending_review";
+    const records = (["company_name","country","hall","stand","website","description"] as const)
+      .map(field => ({
+        user_id: user.id,
+        exhibition_name: exhibition.name,
+        exhibition_year: Number(exhibition.edition_year),
+        company_name: profile.company_name,
+        profile_url: source,
+        field_name: field,
+        extracted_value: profile[field] || null,
+        source_url: source,
+        evidence_text: field === "stand"
+          ? (profile.evidence?.stand_candidates || []).map(c => c.value + " [" + c.context + "]").join("; ").slice(0, 4000)
+          : field === "website" ? (profile.website ? "Website link extracted from exhibitor profile" : "No labeled company website found") : null,
+        verification_status: field === "stand" ? status : profile[field] ? "pending_review" : "not_found",
+        reviewer_notes: notes || null,
+        checked_at: profile.checked_at || new Date().toISOString()
+      }));
+    const { error } = await client.from("helio_research_evidence").insert(records);
+    if (error) throw error;
+    setEvidenceMessages(previous => ({...previous,[index]: "Saved 6 field evidence records in Supabase. Status remains unverified pending review."}));
+  } catch (error) {
+    setEvidenceMessages(previous => ({...previous,[index]: error instanceof Error ? error.message : "Could not save evidence."}));
+  } finally {
+    setSavingEvidence(null);
+  }
+}
+
+
 const [enrichedProfiles, setEnrichedProfiles] = useState<
   Record<number, EnrichedExhibitor>
 >({});
@@ -607,7 +655,11 @@ setApprovedProfiles([]);
           <label>Review notes / conflicting evidence
             <textarea rows={2} value={reviewNotes[Number(index)] || ""} onChange={e => setReviewNotes(previous => ({...previous,[Number(index)]:e.target.value}))} style={{display:"block",width:"100%",padding:8,marginTop:4}} />
           </label>
-          <p><small>Manual corrections are held in this review session. Approve only after verifying source evidence. Import does not yet persist the evidence log or review notes.</small></p>
+          <button type="button" disabled={savingEvidence !== null || bulkEnriching || importing} onClick={() => saveEvidence(Number(index))}>
+            {savingEvidence === Number(index) ? "Saving evidence..." : "Save Research Evidence to Supabase"}
+          </button>
+          <p role="status">{evidenceMessages[Number(index)] || ""}</p>
+          <p><small>Save stores a timestamped evidence snapshot and notes, not an approved or verified result. Manual corrections and approvals remain in this review session; importing exhibitors is a separate action.</small></p>
         </div>
         <p><strong>Country:</strong> {profile.country || "Not available"}</p>
         <p><strong>Hall:</strong> {profile.hall || "Not available"}</p>
