@@ -65,11 +65,16 @@ export async function POST(req:NextRequest){
   const isHr=/hr summit|hrse/i.test(event.name||'');
   const seeds=[event.discovery_event_url,event.official_website,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
+  const visited=new Set<string>();let pagesChecked=0;
   let currentYearEvidence=false;
   const evidenceUrls:string[]=[];
   for(const seed of [...new Set(seeds)].slice(0,3)){
    const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
-   try{const page=await getHtml(target);results.push(...candidates(page.html,page.url));if(isHr&&Number(event.edition_year)===2026&&/(?:2026.{0,100}(?:sponsors|exhibitors)|(?:sponsors|exhibitors).{0,100}2026)/i.test(page.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '))){currentYearEvidence=true;evidenceUrls.push(page.url)}}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
+   try{const page=await getHtml(target);visited.add(page.url);pagesChecked++;results.push(...candidates(page.html,page.url));
+    // Inspect a bounded set of same-host candidate directory pages; never crawl arbitrary sites.
+    const follow=candidates(page.html,page.url).filter(c=>c.score>=60).slice(0,5);
+    for(const link of follow){if(visited.has(link.url))continue;visited.add(link.url);try{const nested=await getHtml(new URL(link.url));pagesChecked++;results.push(...candidates(nested.html,nested.url));}catch(e){errors.push('Directory candidate '+new URL(link.url).pathname+': '+(e instanceof Error?e.message:'Unavailable'));}}
+    if(isHr&&Number(event.edition_year)===2026&&/(?:2026.{0,100}(?:sponsors|exhibitors)|(?:sponsors|exhibitors).{0,100}2026)/i.test(page.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '))){currentYearEvidence=true;evidenceUrls.push(page.url)}}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
   }
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
   if (/hr summit|hrse|hr summit & expo/i.test(event.name||'')) {
@@ -97,6 +102,6 @@ export async function POST(req:NextRequest){
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
