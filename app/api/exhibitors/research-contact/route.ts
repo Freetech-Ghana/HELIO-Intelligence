@@ -40,7 +40,15 @@ function allowed(robots:string,path:string){
  const matches=rules.filter(r=>path.startsWith(r.path)).sort((a,b)=>b.path.length-a.path.length||Number(b.allow)-Number(a.allow));return !matches.length||matches[0].allow;
 }
 function decode(s:string){return s.replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&amp;/gi,'&').replace(/&#64;|&commat;/gi,'@')}
-function emails(html:string){const text=decode(html);return [...new Set((text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)||[]).map(x=>x.toLowerCase()).filter(x=>x.length<=150&&!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(x)))].slice(0,10)}
+function emails(html:string){
+ const text=decode(html);
+ return [...new Set((text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)||[]).map(x=>x.toLowerCase()).filter(x=>{
+  const [local,domain]=x.split('@');
+  return x.length<=150&&!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(x)&&
+   !['example.com','example.org','example.net','mail.com','test.com','domain.com','yourdomain.com','email.com'].includes(domain)&&
+   !/^(example|test|sample|demo|yourname|name|email|user|username|someone|you)([._+\d-].*)?$/.test(local);
+ }))].slice(0,20);
+}
 export async function POST(req:NextRequest){
  try{
   const token=(req.headers.get('authorization')||'').replace(/^Bearer /,'');
@@ -56,7 +64,8 @@ export async function POST(req:NextRequest){
   try{robots=await getPage(robotsUrl)}catch(e){const reason=e instanceof Error?e.message:'Unknown error';if(reason==='HTTP_STATUS_404'||reason==='HTTP_STATUS_410'){robots='';}else{return NextResponse.json({error:reason==='HTTP_STATUS_401'||reason==='HTTP_STATUS_403'?'Website blocks automated access to robots.txt (HTTP '+reason.slice(-3)+'). No pages fetched.':'Could not verify robots.txt ('+(reason.startsWith('HTTP_STATUS_')?'HTTP '+reason.slice(-3):reason)+'). No pages fetched.'},{status:422})}}
   const paths=[base.pathname,'/contact','/contact-us','/en/contact'].filter((v,i,a)=>a.indexOf(v)===i);
   const results:{source_url:string;emails:string[]}[]=[];
-  for(const path of paths.slice(0,4)){if(!allowed(robots,path))continue;try{const url=new URL(path,base);const html=await getPage(url);const found=emails(html);if(found.length)results.push({source_url:url.href,emails:found})}catch{/* skip inaccessible pages */}}
+  const seen=new Set<string>();const companyDomain=base.hostname.toLowerCase().replace(/^www\./,'');
+  for(const path of paths.slice(0,4)){if(!allowed(robots,path))continue;try{const url=new URL(path,base);const html=await getPage(url);const found=emails(html).filter(email=>!seen.has(email));found.forEach(email=>seen.add(email));if(found.length)results.push({source_url:url.href,emails:found.sort((a,b)=>Number(b.split('@')[1]===companyDomain)-Number(a.split('@')[1]===companyDomain))})}catch{/* skip inaccessible pages */}}
   return NextResponse.json({results,notice:'Unverified public email candidates. Review sources manually. Nothing saved or approved; no email sent.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Research failed'},{status:422})}
 }
