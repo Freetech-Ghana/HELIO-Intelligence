@@ -5,14 +5,14 @@ import {db} from '../lib/db';
 type Event={id:string;name:string;edition_year:number;discovery_city?:string|null;directory_url:string|null;discovery_event_url?:string|null;discovery_source_url?:string|null;discovery_start_date?:string|null;discovery_end_date?:string|null;venue?:string|null;date_verified?:boolean};
 type Lead={id:string;exhibition_id:string;company_name:string;website:string|null;verification_status:string;outreach_opt_out?:boolean};
 const safeUrl=(value?:string|null)=>{if(!value)return null;try{const u=new URL(value);return u.protocol==='https:'?u.href:null}catch{return null}};
-const uaePattern=/\\b(dubai|abu dhabi|sharjah|ajman|ras al khaimah|ras al khaimah|rak|fujairah|umm al quwain|uae|united arab emirates|expo city|dubai world trade centre|dubai world trade center|adnec|dw tc|dwtc)\\b/i;
-const otherCountryPattern=/\\b(saudi arabia|riyadh|jeddah|qatar|doha|bahrain|manama|kuwait|oman|muscat|india|mumbai|delhi|germany|berlin|france|paris|london|united kingdom|turkey|istanbul|egypt|cairo)\\b/i;
+const uaePattern=/\b(dubai|abu dhabi|sharjah|ajman|ras al khaimah|ras al khaimah|rak|fujairah|umm al quwain|uae|united arab emirates|expo city|dubai world trade centre|dubai world trade center|adnec|dw tc|dwtc)\b/i;
+const otherCountryPattern=/\b(saudi arabia|riyadh|jeddah|qatar|doha|bahrain|manama|kuwait|oman|muscat|india|mumbai|delhi|germany|berlin|france|paris|london|united kingdom|turkey|istanbul|egypt|cairo)\b/i;
 function locationStatus(e:Event):'uae'|'outside'|'unknown'{
  const city=(e.discovery_city||'').trim(),venue=(e.venue||'').trim();
  if(uaePattern.test(city))return 'uae';
  if(otherCountryPattern.test(city))return 'outside';
- if(city)return 'unknown';
  if(uaePattern.test(venue))return 'uae';
+ if(city)return 'unknown';
  if(otherCountryPattern.test(venue))return 'outside';
  return 'unknown';
 }
