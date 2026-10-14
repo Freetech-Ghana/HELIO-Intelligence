@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@supabase/supabase-js';
 export const runtime='nodejs';
-const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com','adnec.ae','www.adnec.ae','expocitydubai.com','www.expocitydubai.com']);
+const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com','adnec.ae','www.adnec.ae','expocitydubai.com','www.expocitydubai.com','theairportshow.com','www.theairportshow.com','airportshow.german-pavilion.com']);
 const MAX_BYTES=500000;
 const DIRECTORY_TERMS=/exhibitors?|exhibiting.companies|company.directory|brand.directory|sponsors?.and.exhibitors|exhibitor.list/i;
 function safe(raw:string){try{const u=new URL(raw);return u.protocol==='https:'&&!u.username&&!u.password&&APPROVED.has(u.hostname.toLowerCase())?u:null}catch{return null}}
@@ -121,6 +121,10 @@ export async function POST(req:NextRequest){
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
   if (/hr summit|hrse|hr summit & expo/i.test(event.name||'')) {
     results.push({url:'https://informaconnect.com/hr-summit-expo/2025-sponsors-and-exhibitors/#2025-exhibitor-list',label:'Historical 2025 sponsors and exhibitors — NOT a verified 2026 directory',score:15});
+  }
+  if(/airport show|global airport leaders/i.test(event.name||'')&&Number(event.edition_year)===2026){
+    results.push({url:'https://www.theairportshow.com/en-gb/exhibitor-directory.html',label:'Airport Show 2026 official exhibitor directory — organizer website',score:130});
+    results.push({url:'https://airportshow.german-pavilion.com/en/sites/exhibitors',label:'Airport Show 2026 German Pavilion exhibitors — partial directory',score:90});
   }
   // Known official directory is a suggestion only, never auto-verified or imported.
   if(/gulf\s*host/i.test(event.name||''))results.push({url:'https://www.gulfhost.ae/exhibitors',label:'GulfHost official exhibitor directory candidate',score:110});
