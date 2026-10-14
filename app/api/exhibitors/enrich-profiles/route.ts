@@ -417,7 +417,8 @@ export async function POST(request: NextRequest) {
     const officialHrOrigin = "https://informaconnect.com";
     const hrProfile = hr2026 &&
       profile.origin === officialHrOrigin &&
-      /^\\/hr-summit-expo\\/sponsors\\/[^/]+\\/?$/i.test(profile.pathname);
+      profile.pathname.startsWith("/hr-summit-expo/sponsors/") &&
+      profile.pathname.split("/").filter(Boolean).length === 3;
     const standardProfile = directory.origin === profile.origin &&
       profile.pathname.startsWith("/exhibitors/");
 
