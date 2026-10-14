@@ -14,6 +14,8 @@ type Exhibitor = {
 type EnrichedExhibitor = Exhibitor & {
   website: string;
   description: string;
+  evidence?: {stand_status:string;stand_candidates:{value:string;context:string;source_url:string}[];source_url:string};
+  checked_at?: string;
 };
 
 export default function ExhibitorReviewPreview({
@@ -78,6 +80,7 @@ const [showEnrichedDetails, setShowEnrichedDetails] = useState(false);
 const [approvedProfiles, setApprovedProfiles] = useState<number[]>([]);
 const [enrichMessage, setEnrichMessage] = useState("");
 
+const [reviewNotes, setReviewNotes] = useState<Record<number,string>>({});
 const [enrichedProfiles, setEnrichedProfiles] = useState<
   Record<number, EnrichedExhibitor>
 >({});
@@ -135,7 +138,9 @@ setEnrichedProfiles(previous => ({
     stand: profile.stand || "",
     profile_url: exhibitor.profile_url,
     website: profile.website || "",
-    description: profile.description || ""
+    description: profile.description || "",
+    evidence: profile.evidence,
+    checked_at: new Date().toISOString()
   }
 }));
 
@@ -313,10 +318,12 @@ setApprovedProfiles(previous =>
             company_name: exhibitor.company_name,
             country: profile.country || exhibitor.country,
             hall: profile.hall || exhibitor.hall,
-            stand: profile.stand || exhibitor.stand,
+            stand: profile.stand || "",
             profile_url: exhibitor.profile_url,
             website: profile.website || "",
-            description: profile.description || ""
+            description: profile.description || "",
+            evidence: profile.evidence,
+            checked_at: new Date().toISOString()
           }
         }));
 
@@ -478,6 +485,7 @@ disabled={bulkEnriching || importing || reading || enriching !== null}
   setInput(e.target.value);
   setSelected([]);
   setEnrichedProfiles({});
+  setReviewNotes({});
   setEnrichMessage("");
   setBulkProgress("");
 setApprovedProfiles([]);
@@ -578,6 +586,29 @@ setApprovedProfiles([]);
   I have reviewed and approved this company's details
 </label>
 
+        <div style={{ padding: 12, border: "1px solid #bbb", borderRadius: 8, marginBottom: 12 }}>
+          <h4>Company Verification Centre</h4>
+          <p><strong>Evidence status:</strong> {profile.evidence?.stand_status || "No stand evidence provided"}</p>
+          <p><strong>Checked:</strong> {profile.checked_at ? new Date(profile.checked_at).toLocaleString() : "Not recorded"}</p>
+          {(profile.evidence?.stand_candidates || []).map((candidate, i) => (
+            <p key={i} style={{ overflowWrap: "anywhere" }}>
+              <strong>Candidate:</strong> {candidate.value} — {candidate.context}
+              {" "}<a href={candidate.source_url} target="_blank" rel="noopener noreferrer">Official source</a>
+            </p>
+          ))}
+          <p><a href={profile.profile_url} target="_blank" rel="noopener noreferrer">Open official exhibitor profile for manual verification</a></p>
+          <label>Verified stand (enter only after checking official evidence)
+            <input value={profile.stand} onChange={e => {
+              const value = e.target.value.toUpperCase().trim();
+              setEnrichedProfiles(previous => ({...previous, [Number(index)]: {...previous[Number(index)], stand:value}}));
+              setApprovedProfiles(previous => previous.filter(i => i !== Number(index)));
+            }} style={{display:"block",padding:8,marginTop:4}} placeholder="Leave blank if unverified" />
+          </label>
+          <label>Review notes / conflicting evidence
+            <textarea rows={2} value={reviewNotes[Number(index)] || ""} onChange={e => setReviewNotes(previous => ({...previous,[Number(index)]:e.target.value}))} style={{display:"block",width:"100%",padding:8,marginTop:4}} />
+          </label>
+          <p><small>Manual corrections are held in this review session. Approve only after verifying source evidence. Import does not yet persist the evidence log or review notes.</small></p>
+        </div>
         <p><strong>Country:</strong> {profile.country || "Not available"}</p>
         <p><strong>Hall:</strong> {profile.hall || "Not available"}</p>
         <p><strong>Stand:</strong> {profile.stand || "Not available"}</p>
