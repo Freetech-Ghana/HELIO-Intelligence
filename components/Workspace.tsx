@@ -41,12 +41,13 @@ const menu=[
  {id:"email-marketing",label:"Email Marketing",href:"/email-marketing"},
  {id:"campaigns",label:"Legacy Drafts",href:"/campaigns"},
  {id:"research",label:"Research Status",href:"/research"},
+ {id:"evidence",label:"Evidence Centre",href:"/evidence"},
  {id:"ai-assistant",label:"AI Sales Assistant",href:"/ai-assistant"},
  {id:"lead-scoring",label:"Lead Scoring",href:"/lead-scoring"}
 ];
 const menuGroups=[
  {label:"Exhibition Management",ids:["exhibitions","discovery","opportunity-radar","find-exhibitors","directory-finder"]},
- {label:"Lead Management",ids:["leads","qualification","lead-scoring","research"]},
+ {label:"Lead Management",ids:["leads","qualification","lead-scoring","research","evidence"]},
  {label:"Sales & CRM",ids:["pipeline","projects","ai-assistant"]},
  {label:"Marketing",ids:["outreach","email-marketing","campaigns"]},
  {label:"Reports",ids:["reports"]}
