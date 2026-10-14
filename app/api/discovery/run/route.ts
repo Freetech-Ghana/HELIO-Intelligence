@@ -9,10 +9,13 @@ export async function POST(req:NextRequest){
  if(!isScheduler){
   const token=bearer?.startsWith('Bearer ')?bearer.slice(7):'';
   const publicUrl=process.env.NEXT_PUBLIC_SUPABASE_URL,publicKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if(!token||!publicUrl||!publicKey||!configuredOwner)return NextResponse.json({error:'Unauthorized'},{status:401});
+  if(!token)return NextResponse.json({error:'Your login session is missing. Sign out and sign in again.'},{status:401});
+  if(!publicUrl||!publicKey)return NextResponse.json({error:'Supabase authentication configuration is missing on the server.'},{status:503});
+  if(!configuredOwner)return NextResponse.json({error:'Scanner owner is not configured. Set HELIO_SCANNER_OWNER_ID in the server environment to your Supabase Auth user ID.'},{status:503});
   const authDb=createClient(publicUrl,publicKey,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data,error}=await authDb.auth.getUser(token);
-  if(error||!data.user||data.user.id!==configuredOwner)return NextResponse.json({error:'Unauthorized'},{status:401});
+  if(error||!data.user)return NextResponse.json({error:'Login session expired or invalid. Sign out and sign in again.'},{status:401});
+  if(data.user.id!==configuredOwner)return NextResponse.json({error:'This account is not the configured scanner owner. Check HELIO_SCANNER_OWNER_ID in your server environment.'},{status:403});
  }
 
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY,owner=process.env.HELIO_SCANNER_OWNER_ID;
