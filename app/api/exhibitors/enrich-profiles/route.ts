@@ -89,25 +89,35 @@ function field(html: string, label: string): string {
 }
 
 function parseHrSummitProfile(html: string, source: string): Profile {
+  // Informa's global navigation has its own H2, so do not take the first heading.
   const body = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
-  const main = body.match(/<h[1-3]\b[^>]*>\s*Find us at the event\s*<\/h[1-3]>/i);
-  const companyHeadings = [...body.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
-    .map(m => clean(m[1])).filter(Boolean);
-  const company_name = companyHeadings.find(x =>
-    !/^(find us at the event|meet |exhibitors?|stand number|hrse)/i.test(x)
-  ) || clean(meta(html, "og:title")).split("|")[0].trim();
-  // Search the exhibitor's own "Find us at the event" block only, not
-  // unrelated navigation, footer or embedded event promotion data.
-  const section = main ? body.slice(main.index!, main.index! + 5000) : "";
-  const standLabel = section.search(/stand\s*number/i);
-  const afterLabel = standLabel >= 0 ? clean(section.slice(standLabel, standLabel + 500)) : "";
-  const standMatch = afterLabel.match(/stand\s*number\s*[:\-]?\s*([A-Z]{1,3}\s*[-]?\s*\d{1,4}[A-Z]?)/i);
-  const stand = standMatch ? standMatch[1].replace(/\s+/g, "").toUpperCase() : "";
-  const descriptionCandidate = meta(html, "description");
-  const description = /organisation profile for|\|\s*HRSE|hr summit.*expo/i.test(descriptionCandidate)
-    ? "" : descriptionCandidate;
-  return {company_name, country:"", hall:"", stand, website:"", description, profile_url:source};
+  const headings = [...body.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)];
+  const cleanTitle = (value: string) => clean(value).replace(/\s*\|\s*HRSE.*$/i, "").trim();
+  const meet = headings.find(h => /^Meet\s+.+/i.test(clean(h[2])));
+  const nameFromMeet = meet ? clean(meet[2]).replace(/^Meet\s+/i, "").trim() : "";
+  const sectionHeading = headings.find(h => /^Find us at the event$/i.test(clean(h[2])));
+  const beforeSection = sectionHeading
+    ? headings.filter(h => h.index! < sectionHeading.index!)
+    : [];
+  const precedingName = beforeSection.slice().reverse()
+    .map(h => clean(h[2]))
+    .find(x => x && !/^(exhibitors?|informa helps|HRSE|menu)/i.test(x) && x.length < 150) || "";
+  const metaName = cleanTitle(meta(html, "og:title"));
+  const company_name = nameFromMeet || precedingName ||
+    (/^(?!informa helps).+/i.test(metaName) ? metaName : "");
+
+  let stand = "";
+  if (sectionHeading) {
+    const followingHeading = headings.find(h => h.index! > sectionHeading.index!);
+    const section = body.slice(sectionHeading.index! + sectionHeading[0].length,
+      followingHeading ? followingHeading.index! : sectionHeading.index! + 1500);
+    const match = clean(section).match(/\bStand\s*number\s*[:\-]?\s*([A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?)\b/i);
+    if (match) stand = match[1].replace(/\s+/g, "").toUpperCase();
+  }
+
+  // No generic page metadata, unrelated event stand, or organiser contact details.
+  return {company_name, country:"", hall:"", stand, website:"", description:"", profile_url:source};
 }
 
 function parseProfile(html: string, source: string): Profile {
