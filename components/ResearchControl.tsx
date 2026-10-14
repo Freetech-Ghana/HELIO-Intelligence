@@ -14,8 +14,8 @@ marketing_evidence_type?:string|null;
 };
 type Run={id:string;status:string;cursor:string|null;pages_processed:number;profiles_processed:number;duplicates_removed:number;gaps:any;updated_at:string};
 export default function ResearchControl({event,leads,onChanged}:{event:Event|null|undefined;leads:Lead[];onChanged:()=>Promise<void>}){
- const[url,setUrl]=useState(''),[total,setTotal]=useState(''),[runs,setRuns]=useState<Run[]>([]),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[edit,setEdit]=useState<string|null>(null),[draft,setDraft]=useState<any>({});
- useEffect(()=>{setUrl(event?.directory_url||'');setTotal(event?.directory_total==null?'':String(event.directory_total));setStatus('');setEdit(null);if(event)void loadRuns(event.id);else setRuns([])},[event?.id]);
+ const[approvalConfirmed,setApprovalConfirmed]=useState(false);const[url,setUrl]=useState(''),[total,setTotal]=useState(''),[runs,setRuns]=useState<Run[]>([]),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[edit,setEdit]=useState<string|null>(null),[draft,setDraft]=useState<any>({});
+ useEffect(()=>{setUrl(event?.directory_url||'');setTotal(event?.directory_total==null?'':String(event.directory_total));setStatus('');setEdit(null);setApprovalConfirmed(false);if(event)void loadRuns(event.id);else setRuns([])},[event?.id]);
  async function loadRuns(id:string){const{data,error}=await db().from('research_runs').select('*').eq('exhibition_id',id).order('created_at',{ascending:false}).limit(10);if(error)setStatus(error.message);else setRuns(data||[])}
  async function saveDirectory(){if(!event)return;setBusy(true);try{const{error}=await db().from('exhibitions').update({directory_url:url.trim()||null,directory_total:total.trim()?Number(total):null}).eq('id',event.id);if(error)throw error;setStatus('Directory settings saved. No automated research has been performed.');await onChanged()}catch(e:any){setStatus(e.message)}finally{setBusy(false)}}
  async function createRun(){if(!event)return;setBusy(true);try{const{error}=await db().from('research_runs').insert({exhibition_id:event.id,status:'queued',cursor:null});if(error)throw error;setStatus('Research job recorded as queued. A collector worker must be connected before it can run.');await loadRuns(event.id)}catch(e:any){setStatus(e.message)}finally{setBusy(false)}}
@@ -74,9 +74,14 @@ if(approvalStatus==='approved'){
   return;
  }
 
- // Keep approval disabled until the separate evidence review is implemented.
- setStatus('Marketing approval is not enabled yet. Record evidence and complete the approval review first.');
- return;
+ if(!['explicit_consent','documented_other_basis'].includes(String(draft.marketing_evidence_type||''))){
+  setStatus('Choose the documented marketing evidence type before approval.');
+  return;
+ }
+ if(!approvalConfirmed){
+  setStatus('Confirm that the evidence has been reviewed and supports this specific outreach.');
+  return;
+ }
 }
 setBusy(true);try{const fields=[
  'verification_status',
@@ -90,8 +95,9 @@ setBusy(true);try{const fields=[
  'outreach_opt_out',
  'contact_research_status',
  'contact_research_notes',
- 'marketing_approval_notes'
-];;;const patch:any={};for(const k of fields)patch[k]=typeof draft[k]==='string'?(draft[k].trim()||null):draft[k];patch.verification_status=draft.verification_status;patch.participation_status=draft.participation_status;
+ 'marketing_approval_notes',
+ 'marketing_evidence_type'
+];const patch:any={};for(const k of fields)patch[k]=typeof draft[k]==='string'?(draft[k].trim()||null):draft[k];patch.verification_status=draft.verification_status;patch.participation_status=draft.participation_status;
 if(draft.contact_research_status==='verified'){
   patch.contact_verified_at =
     draft.contact_research_status === 'verified' &&
@@ -102,11 +108,24 @@ if(draft.contact_research_status==='verified'){
 }else{
   patch.contact_verified_at=null;
 }
-patch.marketing_approval_status =
- draft.marketing_approval_status || 'not_reviewed';
-
-patch.marketing_approved_at = null;
-const{error}=await db().from('exhibitors').update(patch).eq('id',edit);if(error)throw error;setEdit(null);setStatus('Exhibitor review saved. Mark verified only after confirming source evidence.');await onChanged()}catch(e:any){setStatus(e.message)}finally{setBusy(false)}}
+const original=leads.find(l=>l.id===edit);
+const changedContact=Boolean(original && (
+ String(original.email||'').trim()!==String(draft.email||'').trim() ||
+ String(original.contact_source_url||'').trim()!==String(draft.contact_source_url||'').trim() ||
+ original.contact_research_status!==draft.contact_research_status ||
+ original.outreach_opt_out!==draft.outreach_opt_out
+));
+const requestedApproval=approvalStatus==='approved';
+patch.marketing_approval_status=requestedApproval && !changedContact ? 'approved' :
+ requestedApproval && changedContact ? 'not_reviewed' : approvalStatus;
+patch.marketing_approved_at=patch.marketing_approval_status==='approved'
+ ? (original?.marketing_approval_status==='approved' && original?.marketing_approved_at && !changedContact
+    ? original.marketing_approved_at : new Date().toISOString())
+ : null;
+if(requestedApproval && changedContact){
+ setStatus('Contact details changed. Save and re-open the record to review approval against the updated contact.');
+}
+const{error}=await db().from('exhibitors').update(patch).eq('id',edit);if(error)throw error;setEdit(null);setApprovalConfirmed(false);setStatus('Exhibitor review saved. Mark verified only after confirming source evidence.');await onChanged()}catch(e:any){setStatus(e.message)}finally{setBusy(false)}}
  if(!event)return <section className="panel"><h2>Research Control Centre</h2><p>Select an exhibition first.</p></section>;
  const withEmail=leads.filter(x=>!!x.email).length,verified=leads.filter(x=>x.verification_status==='verified').length,missing=event.directory_total==null?null:Math.max(0,event.directory_total-leads.length);
  return <section className="panel" id="research-control"><h2>Research Control Centre</h2><p><b>{event.name} ({event.edition_year})</b> — research configuration and human verification. No crawler is running in this release.</p>
@@ -131,7 +150,7 @@ const{error}=await db().from('exhibitors').update(patch).eq('id',edit);if(error)
 </a>{' '}{l.website?.startsWith('https://')?
  <a href={l.website} target="_blank" rel="noopener noreferrer">
   Company Website ↗
- </a>:null}{' '}{l.profile_url?<a href={l.profile_url} target="_blank" rel="noreferrer">Directory ↗</a>:'No profile'} {l.contact_source_url?<a href={l.contact_source_url} target="_blank" rel="noreferrer">Contact source ↗</a>:''}</td><td><button onClick={()=>{setEdit(l.id);setDraft({...l})}}>Review</button></td></tr>)}{!leads.length&&<tr><td colSpan={5}>No exhibitor records for this event.</td></tr>}</tbody></table></div>
+ </a>:null}{' '}{l.profile_url?<a href={l.profile_url} target="_blank" rel="noreferrer">Directory ↗</a>:'No profile'} {l.contact_source_url?<a href={l.contact_source_url} target="_blank" rel="noreferrer">Contact source ↗</a>:''}</td><td><button onClick={()=>{setEdit(l.id);setDraft({...l});setApprovalConfirmed(false)}}>Review</button></td></tr>)}{!leads.length&&<tr><td colSpan={5}>No exhibitor records for this event.</td></tr>}</tbody></table></div>
  {edit&&<div className="revieweditor"><h3>Review exhibitor</h3><div className="formgrid">{(['profile_url','website','contact_source_url','email','phone','notes'] as const).map(k=><label key={k}>{k.replaceAll('_',' ')}<input value={draft[k]||''} onChange={e=>setDraft({...draft,[k]:e.target.value})}/></label>)}<label>Verification<select value={draft.verification_status} onChange={e=>setDraft({...draft,verification_status:e.target.value})}>{['pending','verified','directory_only','conflict','not_found'].map(v=><option key={v}>{v}</option>)}</select></label><label>Participation<select value={draft.participation_status} onChange={e=>setDraft({...draft,participation_status:e.target.value})}>{['directory_listing','historical','confirmed_current'].map(v=><option key={v}>{v}</option>)}</select></label>
 <label>
   <input
@@ -213,7 +232,12 @@ const{error}=await db().from('exhibitors').update(patch).eq('id',edit);if(error)
     })}
   />
 </label>
-
+<label>
+ <input type="checkbox" checked={approvalConfirmed}
+  onChange={e=>setApprovalConfirmed(e.target.checked)} />
+ I reviewed the documented evidence and determined it supports this specific marketing outreach under the applicable rules. This is a staff assessment, not automatic proof of consent.
+</label>
+<p>Approval is permitted only for verified contacts with supporting notes, an evidence type, and Do Not Contact turned off. Changing contact details requires a new review.</p>
 <button type="button" disabled={busy} onClick={saveLead}>
   Save review
 </button><button type="button" onClick={()=>setEdit(null)}>Cancel</button></div></div>}
