@@ -388,7 +388,7 @@ export async function POST(request: NextRequest) {
 
     const { data: exhibition, error } = await db
       .from("exhibitions")
-      .select("id,directory_url")
+      .select("id,name,edition_year,directory_url")
       .eq("id", exhibitionId)
       .eq("owner_id", user.id)
       .single();
@@ -412,12 +412,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (
-      directory.origin !== profile.origin ||
-      !profile.pathname.startsWith("/exhibitors/")
-    ) {
+    const hr2026 = /hr summit|hrse/i.test(exhibition.name || "") &&
+      Number(exhibition.edition_year) === 2026;
+    const officialHrOrigin = "https://informaconnect.com";
+    const hrProfile = hr2026 &&
+      profile.origin === officialHrOrigin &&
+      /^\\/hr-summit-expo\\/sponsors\\/[^/]+\\/?$/i.test(profile.pathname);
+    const standardProfile = directory.origin === profile.origin &&
+      profile.pathname.startsWith("/exhibitors/");
+
+    if (!standardProfile && !hrProfile) {
       return NextResponse.json(
-        { error: "Profile does not belong to the saved directory" },
+        { error: "Profile does not belong to the approved exhibition source" },
         { status: 400 }
       );
     }
