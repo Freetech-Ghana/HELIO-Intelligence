@@ -60,13 +60,15 @@ export async function POST(req:NextRequest){
   if(error||!user)return NextResponse.json({error:'Unauthorized'},{status:401});
   const body=await req.json() as {exhibitionId?:string};
   if(!body.exhibitionId||!/^[a-f0-9-]{36}$/i.test(body.exhibitionId))return NextResponse.json({error:'Invalid exhibition ID'},{status:400});
-  const {data:event,error:lookup}=await db.from('exhibitions').select('id,name,discovery_event_url,official_website,directory_url').eq('id',body.exhibitionId).eq('owner_id',user.id).single();
+  const {data:event,error:lookup}=await db.from('exhibitions').select('id,name,edition_year,discovery_event_url,official_website,directory_url').eq('id',body.exhibitionId).eq('owner_id',user.id).single();
   if(lookup||!event)return NextResponse.json({error:'Exhibition not found'},{status:404});
-  const seeds=[event.discovery_event_url,event.official_website].filter((s):s is string=>!!s);
+  const isHr=/hr summit|hrse/i.test(event.name||'');
+  const seeds=[event.discovery_event_url,event.official_website,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
-  for(const seed of seeds.slice(0,2)){
+  let currentYearEvidence=false;
+  for(const seed of [...new Set(seeds)].slice(0,3)){
    const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
-   try{const page=await getHtml(target);results.push(...candidates(page.html,page.url))}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
+   try{const page=await getHtml(target);results.push(...candidates(page.html,page.url));if(isHr&&Number(event.edition_year)===2026&&/2026 sponsors\s*(?:&|and|&#38;)\s*exhibitors/i.test(page.html))currentYearEvidence=true}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
   }
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
   if (/hr summit|hrse|hr summit & expo/i.test(event.name||'')) {
@@ -74,7 +76,16 @@ export async function POST(req:NextRequest){
   }
   // Known official directory is a suggestion only, never auto-verified or imported.
   if(/gulf\s*host/i.test(event.name||''))results.push({url:'https://www.gulfhost.ae/exhibitors',label:'GulfHost official exhibitor directory candidate',score:110});
-  const unique=[...new Map(results.sort((a,b)=>b.score-a.score).map(x=>[x.url,x])).values()];
-  return NextResponse.json({candidates:unique.slice(0,12),existing:event.directory_url||null,errors,notice:'Directory suggestions require human review. No exhibitor records were imported.'});
+  const year=Number(event.edition_year);
+  const tagged=results.map(item=>{
+    const match=new URL(item.url).pathname.match(/(?:^|\\/)(20\\d{2})(?:-|\\/|$)/);
+    const listedYear=match?Number(match[1]):null;
+    return {...item,edition:listedYear,status:listedYear&&listedYear!==year?'historical':listedYear===year?'current_candidate':'unverified'};
+  });
+  const unique=[...new Map(tagged.sort((a,b)=>b.score-a.score).map(x=>[x.url,x])).values()];
+  const current=unique.some(x=>x.status==='current_candidate');
+  const historical=unique.some(x=>x.status==='historical');
+  const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
