@@ -315,12 +315,15 @@ export async function POST(request: NextRequest) {
     }
     const page = await readPage(url);
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
+    const dynamicDirectory = /theairportshow\.com$/i.test(url.hostname) && exhibitors.length === 0;
     return NextResponse.json({
       exhibition: exhibition.name,
       source: page.source,
       exhibitors,
       count: exhibitors.length,
       extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : "Directory profile links",
+      extractionStatus: dynamicDirectory ? "javascript_adapter_required" : exhibitors.length ? "candidates_found" : "no_supported_profile_links",
+      extractionDiagnostic: dynamicDirectory ? "The Airport Show official directory was reached, but exhibitor profiles were not present as supported HTML links. A JavaScript/API-specific adapter is required; zero extracted is not zero exhibitors." : exhibitors.length ? "Exhibitor profile candidates extracted for review." : "No supported profile links found in the fetched HTML. The directory may be dynamically rendered or use another link format.",
       notice: "Candidate records only. Verify each company and its participation before importing. No data was saved."
     });
 
