@@ -64,7 +64,21 @@ const eligible=leads.filter(l=>
  l.contact_research_status==='verified' &&
  l.marketing_approval_status==='approved'
 );const selected=campaigns.find(c=>c.id===campaign);const chosen=eligible.find(l=>l.id===lead);const personalize=(s:string,l:Lead)=>s.replace(/{{company}}/g,l.company_name);
- function exportCsv(){if(!selected||eligible.length===0){setErr('No approved eligible contacts to export.');return;}const rows=[['Company','Email','Subject','Body'],...eligible.map(l=>[l.company_name,l.email||'',personalize(selected.subject,l),personalize(selected.body,l)])];const blob=new Blob(['\ufeff'+csv(rows)],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HELIO_Email_Campaign_Draft.csv';a.click();URL.revokeObjectURL(a.href)}
+ async function exportCsv(){
+  setErr('');
+  if(!selected||eligible.length===0){setErr('No approved eligible contacts to export.');return;}
+  const {data:current,error}=await db().from('exhibitors')
+   .select('id,company_name,email,outreach_opt_out,contact_research_status,marketing_approval_status')
+   .eq('exhibition_id',exhibitionId)
+   .in('id',eligible.map(l=>l.id));
+  if(error){setErr('Could not recheck recipient eligibility: '+error.message);return;}
+  const allowed=(current||[]).filter(l=>
+   Boolean(l.email?.trim()) && l.outreach_opt_out!==true &&
+   l.contact_research_status==='verified' && l.marketing_approval_status==='approved' &&
+   !locallySuppressed.includes(l.id)
+  );
+  if(!allowed.length){setErr('No currently approved contacts to export.');return;}
+  const rows=[['Company','Email','Subject','Body'],...allowed.map(l=>[l.company_name,l.email||'',personalize(selected.subject,l),personalize(selected.body,l)])];const blob=new Blob(['\ufeff'+csv(rows)],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HELIO_Email_Campaign_Draft.csv';a.click();URL.revokeObjectURL(a.href)}
  return <section className="panel" id="email-marketing"><h2>Email Marketing & Follow-Up</h2><p>Prepare personalized campaigns, export approved contact lists and log outreach. <b>Automatic sending is not enabled.</b></p>{err&&<p role="alert" style={{color:'#b42318'}}>{err} — run migration 009 if tables are missing.</p>}{msg&&<p role="status">{msg}</p>}<div className="leadstats"><div><b>{eligible.length}</b><span>Marketing-approved verified contacts (not opted out; review evidence before outreach)</span></div><div><b>{campaigns.length}</b><span>Campaign drafts</span></div><div><b>{activities.filter(a=>a.activity==='sent_manually').length}</b><span>Manually logged sends</span></div></div>
  <h3>1. Prepare campaign</h3><form onSubmit={e=>{e.preventDefault();save('helio_email_campaigns',{exhibition_id:exhibitionId,name,subject,body})}}><div className="formgrid"><label>Campaign name<input required value={name} onChange={e=>setName(e.target.value)}/></label><label>Subject<input required value={subject} onChange={e=>setSubject(e.target.value)}/></label></div><label>Email body (use {'{{company}}'} for personalization)<textarea required rows={7} value={body} onChange={e=>setBody(e.target.value)}/></label><p><button disabled={!exhibitionId}>+ Save campaign draft</button></p></form>
  <h3>2. Preview and export</h3><div className="formgrid"><label>Campaign<select value={campaign} onChange={e=>setCampaign(e.target.value)}><option value="">Choose campaign</option>{campaigns.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Eligible exhibitor<select value={lead} onChange={e=>setLead(e.target.value)}><option value="">Choose exhibitor</option>{eligible.map(l=><option key={l.id} value={l.id}>{l.company_name}</option>)}</select></label></div>{selected&&<><p><b>Subject:</b> {chosen?personalize(selected.subject,chosen):selected.subject}</p><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{chosen?personalize(selected.body,chosen):selected.body}</pre><button type="button" disabled={!eligible.length} onClick={exportCsv}>↓ Export eligible campaign CSV</button> <button type="button" className="ghost" onClick={()=>{if(chosen){navigator.clipboard.writeText('Subject: '+personalize(selected.subject,chosen)+'\n\n'+personalize(selected.body,chosen)).then(()=>setMsg('Copied to clipboard')).catch(()=>setErr('Clipboard unavailable'))}}} disabled={!chosen}>Copy personalized email</button></>}
