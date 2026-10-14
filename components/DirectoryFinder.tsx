@@ -5,10 +5,11 @@ type Candidate={url:string;label:string;score:number;status?:string;edition?:num
 export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:string;onSaved:()=>Promise<void>}){
  const [manualUrl,setManualUrl]=useState('');
  const [discoveryStatus,setDiscoveryStatus]=useState('');
+ const [diagnostic,setDiagnostic]=useState('');
  const [busy,setBusy]=useState(false),[results,setResults]=useState<Candidate[]>([]),[error,setError]=useState(''),[info,setInfo]=useState('');
  async function discover(){
   if(!exhibitionId)return;
-  setBusy(true);setError('');setInfo('');setResults([]);setDiscoveryStatus('');
+  setBusy(true);setError('');setInfo('');setResults([]);setDiscoveryStatus('');setDiagnostic('');
   try{
    const {data:{session}}=await db().auth.getSession();
    if(!session)throw Error('Sign in again');
@@ -19,6 +20,8 @@ export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:str
    setDiscoveryStatus(labels[data.discoveryStatus]||'Directory discovery completed; review source evidence.');
    setInfo((data.candidates||[]).length?'Review the official source before saving. No companies have been imported.':'No approved directory links found. Use manual directory entry.');
    if(data.errors?.length)setError(data.errors.join('; '));
+   if(!(data.candidates||[]).length)setDiagnostic('No supported current-edition directory found. The official website may have a JavaScript-loaded directory, an unsupported host, or no published exhibitor list. This does not mean the exhibition has no exhibitors.');
+   else if(!(data.candidates||[]).some((x:Candidate)=>x.status!=='historical'))setDiagnostic('Only historical directories were found. Do not import previous-year companies as current exhibitors.');
   }catch(e){setError(e instanceof Error?e.message:'Discovery failed')}finally{setBusy(false)}
  }
  async function save(url:string){
@@ -35,6 +38,7 @@ export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:str
   <p>Find possible directory links from approved official sources. Review each link before saving.</p>
   <button type="button" disabled={busy||!exhibitionId} onClick={discover}>{busy?'Searching...':'Find official directory'}</button>
   {discoveryStatus&&<p role="status" style={{fontWeight:700}}>{discoveryStatus}</p>}
+  {diagnostic&&<p role="status">{diagnostic}</p>}
   {error&&<p role="alert">{error}</p>}
   {info&&<p role="status">{info}</p>}
   <div style={{marginTop:18,padding:14,border:'1px solid #ccc',borderRadius:8}}>
