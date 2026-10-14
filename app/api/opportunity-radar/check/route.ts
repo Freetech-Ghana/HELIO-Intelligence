@@ -19,7 +19,7 @@ export async function POST(req:NextRequest){try{
  const source=String(e.discovery_event_url||e.directory_url||'');if(!source)return NextResponse.json({error:'Add an official event source URL first'},{status:400});
  const u=await checked(source);let robots:string;try{robots=await getText(await checked(new URL('/robots.txt',u.origin).href),100000)}catch{return NextResponse.json({error:'Could not verify robots.txt permission; source not checked'},{status:422})}
  if(!robotsAllows(robots,u.pathname))return NextResponse.json({error:'robots.txt disallows monitoring this path'},{status:403});
- const html=await getText(u,350000);const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&(?:nbsp|amp|quot);/gi,' ').replace(/\s+/g,' ').trim().slice(0,120000);
+ const html=await getText(u,2000000);const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&(?:nbsp|amp|quot);/gi,' ').replace(/\s+/g,' ').trim().slice(0,120000);
  const digest=createHash('sha256').update(plain).digest('hex');
  const phrases={stands:/book (?:a |your )?stand|exhibit with us|stand booking|exhibitor registration/i.test(plain),visitors:/visitor registration|register (?:as a )?visitor|book (?:your )?ticket|visitor tickets/i.test(plain),appointments:/book (?:an )?appointment|schedule (?:a )?meeting|hosted buyer|meeting booking/i.test(plain)};
  return NextResponse.json({exhibitionId:id,source:u.href,checkedAt:new Date().toISOString(),fingerprint:digest,signals:phrases,note:'Keyword signals only; not confirmed booking availability or open registration.'});
