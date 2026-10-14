@@ -66,6 +66,7 @@ export async function POST(req:NextRequest){
   const isHr=/hr summit|hrse/i.test(event.name||'');
   const seeds=[event.discovery_event_url,event.official_website,event.directory_url,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
+  const suggestedSearches=[`\"${event.name}\" ${event.edition_year} exhibitor list`,`\"${event.name}\" ${event.edition_year} exhibitors directory`,`\"${event.name}\" ${event.edition_year} sponsors exhibitors`];
   const visited=new Set<string>();let pagesChecked=0;
   const checkedHosts=new Set<string>();
   let currentYearEvidence=false;
@@ -104,6 +105,6 @@ export async function POST(req:NextRequest){
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],suggestedSearches,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
