@@ -1,8 +1,9 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@supabase/supabase-js';
 export const runtime='nodejs';
-const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com']);
+const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com','adnec.ae','www.adnec.ae','expocitydubai.com','www.expocitydubai.com']);
 const MAX_BYTES=500000;
+const DIRECTORY_TERMS=/exhibitors?|exhibiting.companies|company.directory|brand.directory|sponsors?.and.exhibitors|exhibitor.list/i;
 function safe(raw:string){try{const u=new URL(raw);return u.protocol==='https:'&&!u.username&&!u.password&&APPROVED.has(u.hostname.toLowerCase())?u:null}catch{return null}}
 async function getHtml(url:URL){
  let current=url;
@@ -32,7 +33,7 @@ function candidates(html:string,base:string){
   try{url=new URL(href,base)}catch{continue}
   if(!safe(url.href))continue;
   const path=(url.pathname+' '+label).toLowerCase();
-  if(!/exhibitor|exhibiting companies|exhibitor list|exhibitor directory/i.test(path))continue;
+  if(!DIRECTORY_TERMS.test(path))continue;
   if(/become an exhibitor|why exhibit|exhibitor manual|exhibitor services|exhibitor registration|exhibitor portal|exhibitor login|exhibitor enquiry/i.test(path))continue;
   const score=/\/exhibitors?\/?$/i.test(url.pathname)?100:/directory|exhibitor.list|exhibitors/i.test(path)?60:20;
   result.push({url:url.href,label,score});
@@ -63,17 +64,18 @@ export async function POST(req:NextRequest){
   const {data:event,error:lookup}=await db.from('exhibitions').select('id,name,edition_year,discovery_event_url,official_website,directory_url').eq('id',body.exhibitionId).eq('owner_id',user.id).single();
   if(lookup||!event)return NextResponse.json({error:'Exhibition not found'},{status:404});
   const isHr=/hr summit|hrse/i.test(event.name||'');
-  const seeds=[event.discovery_event_url,event.official_website,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
+  const seeds=[event.discovery_event_url,event.official_website,event.directory_url,...(isHr?['https://informaconnect.com/hr-summit-expo/']:[])].filter((s):s is string=>!!s);
   const results:{url:string;label:string;score:number}[]=[];const errors:string[]=[];
   const visited=new Set<string>();let pagesChecked=0;
+  const checkedHosts=new Set<string>();
   let currentYearEvidence=false;
   const evidenceUrls:string[]=[];
   for(const seed of [...new Set(seeds)].slice(0,3)){
    const target=safe(seed);if(!target){errors.push('Event website is outside the approved official hosts');continue}
-   try{const page=await getHtml(target);visited.add(page.url);pagesChecked++;results.push(...candidates(page.html,page.url));
+   try{const page=await getHtml(target);visited.add(page.url);checkedHosts.add(new URL(page.url).hostname);pagesChecked++;results.push(...candidates(page.html,page.url));
     // Inspect a bounded set of same-host candidate directory pages; never crawl arbitrary sites.
     const follow=candidates(page.html,page.url).filter(c=>c.score>=60).slice(0,5);
-    for(const link of follow){if(visited.has(link.url))continue;visited.add(link.url);try{const nested=await getHtml(new URL(link.url));pagesChecked++;results.push(...candidates(nested.html,nested.url));}catch(e){errors.push('Directory candidate '+new URL(link.url).pathname+': '+(e instanceof Error?e.message:'Unavailable'));}}
+    for(const link of follow){if(visited.has(link.url))continue;visited.add(link.url);try{const nested=await getHtml(new URL(link.url));pagesChecked++;checkedHosts.add(new URL(nested.url).hostname);results.push(...candidates(nested.html,nested.url));}catch(e){errors.push('Directory candidate '+new URL(link.url).pathname+': '+(e instanceof Error?e.message:'Unavailable'));}}
     if(isHr&&Number(event.edition_year)===2026&&/(?:2026.{0,100}(?:sponsors|exhibitors)|(?:sponsors|exhibitors).{0,100}2026)/i.test(page.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '))){currentYearEvidence=true;evidenceUrls.push(page.url)}}catch(e){errors.push(e instanceof Error?e.message:'Source failed')}
   }
   // Informa Connect HR Summit historical list: offered as a dated research source, not current-year proof.
@@ -102,6 +104,6 @@ export async function POST(req:NextRequest){
   const current=unique.some(x=>x.status==='current_candidate');
   const historical=unique.some(x=>x.status==='historical');
   const discoveryStatus=current?'current_directory_candidate':currentYearEvidence?'current_exhibitor_section_found':historical?'historical_directory_only':'current_directory_not_found';
-  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
+  return NextResponse.json({candidates:unique.slice(0,12),discoveryStatus,currentYearEvidence,evidenceUrls,pagesChecked,checkedHosts:[...checkedHosts],editionYear:year,existing:event.directory_url||null,errors,notice:'Candidate links and sections require review. A 2026 exhibitor section is not proof of a complete directory. No exhibitor records were imported.'});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Lookup failed'},{status:500})}
 }
