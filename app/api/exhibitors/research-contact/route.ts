@@ -22,7 +22,7 @@ async function getPage(url:URL){
  if(!ips.length||ips.some(i=>!publicAddress(i.address)))throw Error('Website DNS is not publicly routable');
  const chosen=ips[0];
  return await new Promise<string>((resolve,reject)=>{
-  const req=https.request(url,{method:'GET',timeout:8000,headers:{'User-Agent':'HELIOContactResearch/1.0','Accept':'text/html,text/plain'},lookup:(_host,_opts,cb)=>cb(null,chosen.address,chosen.family)},res=>{
+  const req=https.request(url,{method:'GET',timeout:8000,headers:{'User-Agent':'HELIOContactResearch/1.0','Accept':'text/html,text/plain'},lookup:(_host,opts,cb)=>{if(opts.all)cb(null,[{address:chosen.address,family:chosen.family}]);else cb(null,chosen.address,chosen.family)}},res=>{
    if(res.statusCode!==200){res.resume();reject(Error('HTTP_STATUS_'+res.statusCode));return}
    const type=String(res.headers['content-type']||'');
    if(!/text\/(html|plain)/i.test(type)){res.resume();reject(Error('Not an HTML or text page'));return}
