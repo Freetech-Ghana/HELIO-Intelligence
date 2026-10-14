@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+const MAX_DIRECTORY_BYTES = 3_000_000;
 
 const ALLOWED_HOSTS = new Set([
   "gulfhost.ae",
@@ -121,7 +122,7 @@ async function readPage(initial: URL) {
     }
 
     const length = Number(response.headers.get("content-length") || 0);
-    if (length > 500000) throw Error("Directory page exceeds size limit");
+    if (length > MAX_DIRECTORY_BYTES) throw Error("Directory page exceeds size limit");
 
     const reader = response.body?.getReader();
     if (!reader) throw Error("Empty directory response");
@@ -135,7 +136,7 @@ async function readPage(initial: URL) {
         if (done) break;
 
         total += value.byteLength;
-        if (total > 500000) {
+        if (total > MAX_DIRECTORY_BYTES) {
           throw Error("Directory page exceeds size limit");
         }
         chunks.push(value);
