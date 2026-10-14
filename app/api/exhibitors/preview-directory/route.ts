@@ -205,6 +205,39 @@ function extract(html: string, source: string) {
   return rows;
 }
 
+
+function extractHr2026(html: string, source: string) {
+  // HRSE displays sponsor and exhibitor profiles under /sponsors/.
+  // Only links within the explicit Exhibitors section are candidates.
+  const headings = [...html.matchAll(/<h([1-6])\\b[^>]*>([\\s\\S]*?)<\\/h\\1>/gi)];
+  const rows: ReturnType<typeof extract> = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < headings.length; i++) {
+    if (!/^exhibitors?$/i.test(clean(headings[i][2]))) continue;
+    const start = headings[i].index! + headings[i][0].length;
+    const level = Number(headings[i][1]);
+    let end = html.length;
+    for (let j = i + 1; j < headings.length; j++) {
+      if (Number(headings[j][1]) <= level) { end = headings[j].index!; break; }
+    }
+    const section = html.slice(start, end);
+    for (const anchor of section.matchAll(/<a\\b([^>]*)>([\\s\\S]*?)<\\/a>/gi)) {
+      const href = anchor[1].match(/\\bhref\\s*=\\s*["']([^"']+)["']/i)?.[1];
+      if (!href) continue;
+      let url: URL;
+      try { url = new URL(decodeHtml(href), source); } catch { continue; }
+      if (!approved(url.href) || !/\\/hr-summit-expo\\/sponsors\\/[^/]+\\/?$/i.test(url.pathname)) continue;
+      const imgAlt = anchor[2].match(/<img\\b[^>]*\\balt\\s*=\\s*["']([^"']+)["']/i)?.[1] || "";
+      const name = clean(anchor[2]) || clean(imgAlt);
+      if (name.length < 2 || name.length > 150 || seen.has(url.pathname)) continue;
+      seen.add(url.pathname);
+      rows.push({ company_name: name, country: "", hall: "", stand: "", profile_url: url.href });
+      if (rows.length >= 100) return rows;
+    }
+  }
+  return rows;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authorization = request.headers.get("authorization") || "";
@@ -257,35 +290,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const url = approved(exhibition.directory_url || "");
-
+    const hr2026 = /hr summit|hrse/i.test(exhibition.name || "") && Number(exhibition.edition_year) === 2026;
+    const saved = approved(exhibition.directory_url || "");
+    // For this specific event, read its current official exhibitor section even
+    // if the saved link points to the homepage. Never use its 2025 listing.
+    const url = hr2026
+      ? approved("https://informaconnect.com/hr-summit-expo/")
+      : saved;
     if (!url) {
-      return NextResponse.json(
-        { error: "No approved official directory saved for this exhibition" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No approved official directory saved for this exhibition" }, { status: 400 });
     }
-
-    // Historical exhibitor listings must never be silently assigned to another edition.
-    const pathYear = url.pathname.match(/(?:^|\/)(20\d{2})(?:-|\/|$)/);
-    if (pathYear && Number(pathYear[1]) !== Number(exhibition.edition_year)) {
-      return NextResponse.json({
-        error: `This listing is for ${pathYear[1]}, but the selected exhibition is ${exhibition.edition_year}. Select or create the matching historical exhibition edition before reading or importing.`
-      }, { status: 409 });
-    }
-    if (/informaconnect\.com$/i.test(url.hostname) && !/sponsors?-and-exhibitors|exhibitor-list|exhibitors/i.test(url.pathname)) {
-      return NextResponse.json({
-        error: "This Informa Connect URL is an event or sponsorship page, not an exhibitor listing. Save the edition-specific Sponsors and Exhibitors listing instead."
-      }, { status: 422 });
+    if (!hr2026) {
+      const pathYear = url.pathname.match(new RegExp("(?:^|/)(20[0-9]{2})(?:-|/|$)"));
+      if (pathYear && Number(pathYear[1]) !== Number(exhibition.edition_year)) {
+        return NextResponse.json({ error: "The saved directory is for a different exhibition edition." }, { status: 409 });
+      }
+      if (/informaconnect\\.com$/i.test(url.hostname) && !/sponsors?-and-exhibitors|exhibitor-list|exhibitors/i.test(url.pathname)) {
+        return NextResponse.json({ error: "Save an edition-specific exhibitor listing rather than an event homepage." }, { status: 422 });
+      }
     }
     const page = await readPage(url);
-    const exhibitors = extract(page.html, page.source);
-
+    const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
     return NextResponse.json({
       exhibition: exhibition.name,
       source: page.source,
       exhibitors,
       count: exhibitors.length,
+      extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : "Directory profile links",
       notice: "Candidate records only. Verify each company and its participation before importing. No data was saved."
     });
 
