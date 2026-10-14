@@ -1,19 +1,22 @@
 "use client";
 import {useState} from 'react';
 import {db} from '../lib/db';
-type Candidate={url:string;label:string;score:number};
+type Candidate={url:string;label:string;score:number;status?:string;edition?:number|null};
 export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:string;onSaved:()=>Promise<void>}){
  const [manualUrl,setManualUrl]=useState('');
+ const [discoveryStatus,setDiscoveryStatus]=useState('');
  const [busy,setBusy]=useState(false),[results,setResults]=useState<Candidate[]>([]),[error,setError]=useState(''),[info,setInfo]=useState('');
  async function discover(){
   if(!exhibitionId)return;
-  setBusy(true);setError('');setInfo('');setResults([]);
+  setBusy(true);setError('');setInfo('');setResults([]);setDiscoveryStatus('');
   try{
    const {data:{session}}=await db().auth.getSession();
    if(!session)throw Error('Sign in again');
    const r=await fetch('/api/exhibitors/discover-directory',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({exhibitionId})});
    const data=await r.json();if(!r.ok)throw Error(data.error||'Discovery failed');
    setResults(data.candidates||[]);
+   const labels:Record<string,string>={current_directory_candidate:'Current-edition directory candidate found — verify before saving',current_exhibitor_section_found:'2026 exhibitor section found on the official event website; a complete directory URL has not been confirmed',historical_directory_only:'Only historical directory candidates found; do not import into the selected edition',current_directory_not_found:'No current-edition directory identified from the checked official pages'};
+   setDiscoveryStatus(labels[data.discoveryStatus]||'Directory discovery completed; review source evidence.');
    setInfo((data.candidates||[]).length?'Review the official source before saving. No companies have been imported.':'No approved directory links found. Use manual directory entry.');
    if(data.errors?.length)setError(data.errors.join('; '));
   }catch(e){setError(e instanceof Error?e.message:'Discovery failed')}finally{setBusy(false)}
@@ -31,6 +34,7 @@ export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:str
   <h3>Automatic official directory search (beta)</h3>
   <p>Find possible directory links from approved official sources. Review each link before saving.</p>
   <button type="button" disabled={busy||!exhibitionId} onClick={discover}>{busy?'Searching...':'Find official directory'}</button>
+  {discoveryStatus&&<p role="status" style={{fontWeight:700}}>{discoveryStatus}</p>}
   {error&&<p role="alert">{error}</p>}
   {info&&<p role="status">{info}</p>}
   <div style={{marginTop:18,padding:14,border:'1px solid #ccc',borderRadius:8}}>
@@ -41,6 +45,6 @@ export default function DirectoryFinder({exhibitionId,onSaved}:{exhibitionId:str
    <button type="button" disabled={busy||!exhibitionId||!manualUrl.trim()} onClick={()=>save(manualUrl.trim())}>Save reviewed directory URL</button>
    <p style={{fontSize:13}}>Saving a link does not verify its contents or guarantee automated extraction. Unsupported hosts may require a separate source adapter.</p>
   </div>
-  {results.length>0&&<div className="tablewrap"><table><thead><tr><th>Suggested official directory</th><th>Review</th><th>Action</th></tr></thead><tbody>{results.map(c=><tr key={c.url}><td>{c.label||'Directory candidate'}</td><td><a href={c.url} target="_blank" rel="noopener noreferrer">Open source ↗</a></td><td><button type="button" disabled={busy} onClick={()=>save(c.url)}>Save reviewed link</button></td></tr>)}</tbody></table></div>}
+  {results.length>0&&<div className="tablewrap"><table><thead><tr><th>Suggested official directory</th><th>Review</th><th>Action</th></tr></thead><tbody>{results.map(c=><tr key={c.url}><td>{c.label||'Directory candidate'} {c.status==='historical'?'(Historical — wrong edition)':c.status==='unverified'?'(Edition unverified)':''}</td><td><a href={c.url} target="_blank" rel="noopener noreferrer">Open source ↗</a></td><td><button type="button" disabled={busy||c.status==='historical'} onClick={()=>save(c.url)}>{c.status==='historical'?'Historical only':'Save reviewed link'}</button></td></tr>)}</tbody></table></div>}
  </div>;
 }
