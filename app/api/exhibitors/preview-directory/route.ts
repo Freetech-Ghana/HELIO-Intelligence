@@ -209,7 +209,7 @@ function extract(html: string, source: string) {
 function extractHr2026(html: string, source: string) {
   // HRSE displays sponsor and exhibitor profiles under /sponsors/.
   // Only links within the explicit Exhibitors section are candidates.
-  const headings = [...html.matchAll(/<h([1-6])\\b[^>]*>([\\s\\S]*?)<\\/h\\1>/gi)];
+  const headings = [...html.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)];
   const rows: ReturnType<typeof extract> = [];
   const seen = new Set<string>();
   for (let i = 0; i < headings.length; i++) {
@@ -221,13 +221,13 @@ function extractHr2026(html: string, source: string) {
       if (Number(headings[j][1]) <= level) { end = headings[j].index!; break; }
     }
     const section = html.slice(start, end);
-    for (const anchor of section.matchAll(/<a\\b([^>]*)>([\\s\\S]*?)<\\/a>/gi)) {
-      const href = anchor[1].match(/\\bhref\\s*=\\s*["']([^"']+)["']/i)?.[1];
+    for (const anchor of section.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+      const href = anchor[1].match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
       if (!href) continue;
       let url: URL;
       try { url = new URL(decodeHtml(href), source); } catch { continue; }
-      if (!approved(url.href) || !/\\/hr-summit-expo\\/sponsors\\/[^/]+\\/?$/i.test(url.pathname)) continue;
-      const imgAlt = anchor[2].match(/<img\\b[^>]*\\balt\\s*=\\s*["']([^"']+)["']/i)?.[1] || "";
+      if (!approved(url.href) || !/\/hr-summit-expo\/sponsors\/[^/]+\/?$/i.test(url.pathname)) continue;
+      const imgAlt = anchor[2].match(/<img\b[^>]*\balt\s*=\s*["']([^"']+)["']/i)?.[1] || "";
       const name = clean(anchor[2]) || clean(imgAlt);
       if (name.length < 2 || name.length > 150 || seen.has(url.pathname)) continue;
       seen.add(url.pathname);
