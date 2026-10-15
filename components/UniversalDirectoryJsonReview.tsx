@@ -132,8 +132,8 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
     URL.revokeObjectURL(url);
   }
   return <details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
-    <summary style={{cursor:"pointer",fontWeight:600}}>Universal Exhibition JSON Reader — review only</summary>
-    <p>Upload one or more JSON pages from an authorized official exhibitor directory. The reader supports RX Global JSON and explicitly normalized MapYourShow/ExpoPlatform JSON. Inspect an official directory to detect its platform and preview public HTML profile candidates. Nothing is imported automatically.</p>
+    <summary style={{cursor:"pointer",fontWeight:600}}>Exhibitor Directory Discovery & Extraction — review only</summary>
+    <p>Discover possible directory sources, inspect supported public HTML profiles, or upload authorized JSON pages for review. Automatic browser extraction is being developed separately. No records are imported automatically.</p>
     <div style={{padding:12,marginBottom:12,border:"1px solid #ddd",borderRadius:6}}>
       <strong>Universal directory source finder — Stage 1</strong>
       <p>Generate official-directory searches for the selected exhibition and year, even when no directory URL is saved. Search results must be reviewed before reading or importing.</p>
