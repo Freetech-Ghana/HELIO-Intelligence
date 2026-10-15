@@ -53,6 +53,17 @@ const crawler=new PlaywrightCrawler({
       name:(a.textContent||a.querySelector("img")?.getAttribute("alt")||"").replace(/\s+/g," ").trim(),
       href:a.href,rel:a.getAttribute("rel")||""
     })).slice(0,5000));
+    // Record pagination controls without guessing hidden APIs or page totals.
+    const pagination=await page.evaluate(()=>{
+      const nodes=[...document.querySelectorAll('button,a,[role="button"],input[type="button"]')];
+      return nodes.map(el=>({
+        tag:el.tagName,
+        text:(el.textContent||el.getAttribute("aria-label")||el.getAttribute("title")||"").trim().slice(0,90),
+        href:el.getAttribute("href"),
+        disabled:el.hasAttribute("disabled")||el.getAttribute("aria-disabled")==="true"
+      })).filter(x=>/next|more|page|›|»|^\d{1,3}$|load|show/i.test(x.text)).slice(0,80);
+    });
+    await writeFile("directory-pagination-diagnostic.json",JSON.stringify({url:request.url,pagination},null,2));
     const record=async(a)=>{
       let u;try{u=new URL(a.href);}catch{return;}
       if(u.origin!==root.origin||u.protocol!=="https:") return;
@@ -113,7 +124,7 @@ try {
       if(details.title&&details.title.length<160) {item.profile_heading=details.title;if(!item.company_name||/^(?:\.{2,}|view|details|read more)$/i.test(item.company_name.trim())) item.company_name=details.title;}
       if(details.description&&!/discover the latest industry products|view our exhibitor list|sneak peek at the brands/i.test(details.description)) item.description=details.description.slice(0,500);
       item.website=details.urls.find(h=>{try{
-        const u=new URL(h);return u.hostname!==root.hostname&&!u.hostname.endsWith(".big5global.com")&&!/(big5global|facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
+        const u=new URL(h);return !/\.(pdf|docx?|xlsx?|pptx?|zip)(?:$|[?#])/i.test(u.pathname)&&u.hostname!==root.hostname&&!u.hostname.endsWith(".big5global.com")&&!/(big5global|facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
       }catch{return false;}})||null;
       item.profile_status="review_required";
     }catch(e){item.profile_status="unavailable";failures.push({url:item.profile_url,error:String(e).slice(0,200)});}
