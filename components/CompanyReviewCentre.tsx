@@ -1,9 +1,18 @@
 "use client";
 import {useMemo,useState} from "react";
+import {db} from "../lib/db";
 type Candidate={company_name:string;profile_url:string;website?:string|null;country?:string|null;hall?:string|null;stand_number?:string|null;company_description?:string|null;details_status?:string;verification_status?:string};
 const norm=(s:string)=>s.normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
-export default function CompanyReviewCentre(){
+export default function CompanyReviewCentre({exhibitionId}:{exhibitionId:string}){
  const [records,setRecords]=useState<Candidate[]>([]);
+ const [stored,setStored]=useState<(Candidate&{id:string;review_decision:string})[]>([]);
+ const [jobs,setJobs]=useState<{id:string;status:string;profiles_found:number;coverage_status:string}[]>([]);
+ const [busy,setBusy]=useState(false);
+ async function request(method:"GET"|"POST"|"PATCH",payload?:unknown){const {data:{session}}=await db().auth.getSession();if(!session)throw Error("Sign in first");const response=await fetch("/api/exhibitors/crawl-jobs"+(method==="GET"?"?exhibitionId="+encodeURIComponent(exhibitionId):""),{method,headers:{Authorization:"Bearer "+session.access_token,...(method==="GET"?{}:{"Content-Type":"application/json"})},...(method==="GET"?{}:{body:JSON.stringify(payload)})});const result=await response.json();if(!response.ok)throw Error(result.error||"Request failed");return result;}
+ async function refresh(){setBusy(true);setError("");try{const r=await request("GET");setStored(r.candidates||[]);setJobs(r.jobs||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load saved candidates");}finally{setBusy(false);}}
+ async function queue(){setBusy(true);setError("");try{await request("POST",{exhibitionId});await refresh();}catch(e){setError(e instanceof Error?e.message:"Could not queue job");}finally{setBusy(false);}}
+ async function decide(id:string,decision:string){try{await request("PATCH",{id,decision});setStored(prev=>prev.map(x=>x.id===id?{...x,review_decision:decision}:x));}catch(e){setError(e instanceof Error?e.message:"Review update failed");}}
+
  const [error,setError]=useState("");
  const [search,setSearch]=useState("");
  const [mode,setMode]=useState("all");
@@ -38,6 +47,7 @@ export default function CompanyReviewCentre(){
  return <section style={{border:"1px solid #ddd",borderRadius:8,padding:14,marginTop:14}}>
   <h3>Company Review Centre — local review only</h3>
   <p>Upload the crawler's exhibitor-candidates-review.json. Company names are grouped for inspection; each exhibitor profile and stand remains separate. No automatic merging, verification, or database import.</p>
+  <div style={{padding:10,border:"1px solid #ddd",borderRadius:6,marginBottom:12}}><strong>Supabase crawler staging</strong><p>Queued jobs require a separately running crawler worker. Results appear here after the worker submits them; CRM import remains disabled.</p><button type="button" disabled={busy||!exhibitionId} onClick={()=>void queue()}>Queue exhibitor discovery</button> <button type="button" disabled={busy||!exhibitionId} onClick={()=>void refresh()}>Refresh saved candidates</button>{jobs.map(j=><p key={j.id}>Job {j.id} — {j.status} · {j.profiles_found} stored · {j.coverage_status}</p>)}<p>{stored.length} saved candidate profiles</p><div style={{maxHeight:350,overflow:"auto"}}>{stored.map(x=><div key={x.id} style={{padding:5,borderBottom:"1px solid #eee"}}><a href={x.profile_url} target="_blank" rel="noopener noreferrer">{x.company_name}</a> — {x.hall||"Hall unknown"} / {x.stand_number||"Stand unknown"} <select aria-label={"Review saved "+x.company_name} value={x.review_decision} onChange={e=>void decide(x.id,e.target.value)}><option value="pending">Pending</option><option value="keep_separate">Keep separate</option><option value="group_company">Group company</option><option value="reject">Reject</option></select></div>)}</div></div>
   <input type="file" accept=".json,application/json" aria-label="Choose crawler candidate JSON" onChange={e=>void load(e.target.files?.[0])}/>
   {error&&<p role="alert" style={{color:"#b42318"}}>{error}</p>}
   {records.length>0&&<div>
