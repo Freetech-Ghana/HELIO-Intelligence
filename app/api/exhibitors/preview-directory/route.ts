@@ -158,6 +158,16 @@ async function readPage(initial: URL) {
   throw Error("Too many redirects");
 }
 
+// RX Global pages use a JavaScript show-planning directory. Inspect only
+// publicly delivered page metadata; never guess a private API endpoint.
+function inspectRxDirectory(html: string) {
+  const rxDetected = /reactSettingsShowPlanning|algoliaConfig|api\.reedexpo\.com/i.test(html);
+  const editionId = html.match(/["']eventEditionId["']\s*:\s*["']([0-9a-f-]{36})["']/i)?.[1] || null;
+  const apiOrigin = html.includes("https://api.reedexpo.com/")
+    ? "https://api.reedexpo.com/" : null;
+  return { rxDetected, editionId, apiOrigin };
+}
+
 function extract(html: string, source: string) {
   const rows: {
     company_name: string;
@@ -343,6 +353,7 @@ export async function POST(request: NextRequest) {
         }, { status: 409 });
       }
     }
+    const rx = inspectRxDirectory(page.html);
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
     const dynamicDirectory = exhibitors.length === 0 && (/theairportshow\.com$/i.test(url.hostname) || /reactSettingsShowPlanning|css-components\.rxweb-prd\.com\/packages\/show-planning|api\.reedexpo\.com/i.test(page.html));
     return NextResponse.json({
@@ -350,6 +361,7 @@ export async function POST(request: NextRequest) {
       source: page.source,
       exhibitors,
       count: exhibitors.length,
+      rxDirectory: rx.rxDetected ? { platform: "RX Global Show Planning", editionId: rx.editionId, apiOrigin: rx.apiOrigin, status: "api_adapter_pending", note: "The public HTML does not expose exhibitor records. A documented or browser-observed permitted API request is needed before extraction." } : null,
       extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : dynamicDirectory ? "RX Global dynamic directory (adapter required)" : "Directory profile links",
       extractionStatus: dynamicDirectory ? "javascript_adapter_required" : exhibitors.length ? "candidates_found" : "no_supported_profile_links",
       extractionDiagnostic: dynamicDirectory ? "This official directory uses an RX Global JavaScript component or API-backed listing. The static HTML reader found no company profiles. A permitted source-specific data adapter is needed; zero extracted does not mean zero exhibitors." : exhibitors.length ? "Exhibitor profile candidates extracted for review." : "No supported profile links found in the fetched HTML. The directory may be dynamically rendered or use another link format.",
