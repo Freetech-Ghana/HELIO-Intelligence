@@ -77,6 +77,42 @@ const crawler=new PlaywrightCrawler({
       }
     };
     for(const a of data) await record(a);
+    // JavaScript pagination: controls may use javascript:void(0) instead of URLs.
+    // Follow the visible Next control, or numbered page controls, while content changes.
+    const readAnchors=()=>page.locator("a[href]").evaluateAll(anchors=>anchors.map(a=>({
+      name:(a.textContent||a.querySelector("img")?.getAttribute("alt")||"").replace(/\\s+/g," ").trim(),
+      href:a.href,rel:a.getAttribute("rel")||""
+    })).slice(0,5000));
+    const signature=async()=>JSON.stringify((await readAnchors()).filter(a=>/\\/exhibitor\\/exbdetails\\//i.test(a.href)).map(a=>a.href).slice(0,40));
+    let lastSignature=await signature();
+    let clickedPages=0;
+    for(let turn=0;turn<30;turn++){
+      const controls=page.locator('a,button,[role="button"]');
+      const candidates=await controls.evaluateAll(nodes=>nodes.map((el,index)=>({
+        index,
+        text:(el.textContent||"").replace(/\\s+/g," ").trim(),
+        label:el.getAttribute("aria-label")||"",
+        title:el.getAttribute("title")||"",
+        href:el.getAttribute("href")||"",
+        disabled:el.hasAttribute("disabled")||el.getAttribute("aria-disabled")==="true",
+        cls:typeof el.className==="string"?el.className:""
+      })).filter(x=>!x.disabled&&(/^(?:next|next page|»|›|Â»|>>)$/i.test(x.text)||/next/i.test(x.label+" "+x.title))&&(/javascript:void\\(0\\)/i.test(x.href)||/page|pagination|pager/i.test(x.cls+" "+x.label+" "+x.title))).slice(0,10));
+      const next=candidates[0];
+      if(!next) break;
+      const control=controls.nth(next.index);
+      if(!(await control.isVisible().catch(()=>false))) break;
+      await control.click({timeout:5000}).catch(()=>{});
+      let updated=lastSignature;
+      for(let wait=0;wait<8;wait++){
+        await page.waitForTimeout(450);
+        updated=await signature();
+        if(updated!==lastSignature) break;
+      }
+      if(updated===lastSignature) break;
+      lastSignature=updated;clickedPages++;
+      for(const a of await readAnchors()) await record(a);
+    }
+    await writeFile("directory-pagination-result.json",JSON.stringify({clickedPages,uniqueProfiles:found.size,source:request.url},null,2));
     // Re-read the listing after bounded Load More interactions and scrolling.
     for(let round=0;round<pageLimit;round++){
       let advanced=false;
