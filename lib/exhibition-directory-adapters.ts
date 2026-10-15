@@ -16,7 +16,37 @@ const str = (v: unknown): string => typeof v === "string" ? v.trim() : "";
 const arr = (v: unknown): unknown[] => Array.isArray(v) ? v : [];
 const num = (v: unknown): number | null => typeof v === "number" && Number.isFinite(v) ? v : null;
 const domain = (v: string) => { try { const u = new URL(v); return u.protocol === "https:" ? u.href : ""; } catch { return ""; } };
+// Conservative platform-specific readers: only documented/explicitly mapped JSON
+// fields are accepted. An arbitrary search result is never treated as an exhibitor.
+function genericListing(r: UnknownRecord, platform: "mapyourshow" | "expoplatform"): DirectoryReview {
+  const entries=arr(r.exhibitors);
+  if (!entries.length) throw Error("No exhibitor entries in the supported "+platform+" JSON format.");
+  const companies=entries.map(v=>{
+    const x=obj(v);
+    const id=str(x.id) || str(x.exhibitorId);
+    const name=str(x.companyName) || str(x.name);
+    const edition=str(x.editionId) || str(r.editionId);
+    return {
+      source_id:id,company_name:name,display_name:name,
+      country:str(x.country),stand:str(x.booth) || str(x.stand),
+      hall:str(x.hall),website:domain(str(x.website)),
+      email:str(x.email),phone:str(x.phone),
+      description:str(x.description),profile_url:domain(str(x.profileUrl)),
+      edition_id:edition,source_platform:platform
+    };
+  }).filter(x=>x.source_id && x.company_name && x.edition_id);
+  if (companies.length!==entries.length) throw Error("Missing company ID, name or edition ID in "+platform+" listing. No records accepted.");
+  return {
+    platform,companies,reported_total:num(r.total),page:num(r.page),
+    total_pages:num(r.totalPages),
+    edition_ids:[...new Set(companies.map(x=>x.edition_id))],
+    warnings:["This adapter requires a normalized, source-authorized exhibitor listing with explicit edition IDs; it does not claim to support every vendor API response."],
+    can_import:false
+  };
+}
 const adapters: { name: string; match: (r: UnknownRecord) => boolean; read: (r: UnknownRecord) => DirectoryReview }[] = [
+  {name:"mapyourshow",match:r=>r.sourcePlatform==="mapyourshow" && Array.isArray(r.exhibitors),read:r=>genericListing(r,"mapyourshow")},
+  {name:"expoplatform",match:r=>r.sourcePlatform==="expoplatform" && Array.isArray(r.exhibitors),read:r=>genericListing(r,"expoplatform")},
   {
     name: "rx_global_algolia",
     match: r => Array.isArray(r.hits) && arr(r.hits).some(h => obj(h).recordType === "exhibitor" && !!str(obj(h).eventEditionId)),
@@ -55,7 +85,7 @@ export function inspectDirectoryJson(value: unknown): DirectoryReview {
   const reports = pages.map(p => {
     const root = obj(p);
     const adapter = adapters.find(a => a.match(root));
-    if (!adapter) throw new Error("Unsupported directory JSON format. This reader currently supports RX Global Algolia exhibitor listings; other platforms require a separate adapter.");
+    if (!adapter) throw new Error("Unsupported directory JSON format. Supported JSON: RX Global Algolia, or explicitly normalized MapYourShow/ExpoPlatform exhibitor listings with edition IDs.");
     return adapter.read(root);
   });
   const seen = new Set<string>();
