@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "crawl": "node crawl.mjs",
-    "enrich": "node enrich.mjs"
+    "enrich": "node enrich.mjs",
+    "enrich-details": "node enrich-details.mjs"
   },
   "dependencies": {
     "crawlee": "^3.15.0",
