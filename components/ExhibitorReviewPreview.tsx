@@ -566,7 +566,7 @@ setApprovedProfiles([]);
   return (
     <section style={{ marginTop: 24, padding: 20, border: "1px solid #ccc", borderRadius: 12 }}>
       <h2>Exhibitor Review Workspace — v2.2</h2>
-<UniversalDirectoryJsonReview />
+<UniversalDirectoryJsonReview exhibitionId={exhibitionId} />
 <details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
   <summary style={{cursor:"pointer",fontWeight:600}}>Inspect RX Global GraphQL JSON (read-only)</summary>
   <p>Paste a public exhibitingOrganisation response from browser Network → Response. This checks one company and its products; it does not import exhibitors.</p>
