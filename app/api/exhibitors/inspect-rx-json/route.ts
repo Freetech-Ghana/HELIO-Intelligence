@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 // This is NOT an exhibitor-directory crawler or an import endpoint.
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "").trim();
+    const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (!token || !url || !key) return NextResponse.json({error:"Unauthorized"}, {status:401});
