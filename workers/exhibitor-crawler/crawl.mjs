@@ -90,6 +90,34 @@ const crawler=new PlaywrightCrawler({
 });
 Configuration.getGlobalConfig().set("persistStorage",false);
 await crawler.run([root.href]);
+// Enrich a bounded number of public profile pages. No guessing, no contact harvesting.
+const profiles=[...found.values()].slice(0,25);
+const { chromium }=await import("playwright");
+const browser=await chromium.launch({headless:true});
+try {
+  const context=await browser.newContext();
+  const page=await context.newPage();
+  for(const item of profiles) {
+    try {
+      const target=new URL(item.profile_url);
+      if(target.origin!==root.origin) continue;
+      const response=await page.goto(target.href,{waitUntil:"domcontentloaded",timeout:15000});
+      if(!response||response.status()>=400||new URL(page.url()).origin!==root.origin) throw Error("Profile unavailable or redirected");
+      const details=await page.evaluate(()=>{
+        const title=document.querySelector("h1")?.textContent?.trim()||"";
+        const description=document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim()||"";
+        const urls=[...document.querySelectorAll("a[href]")].map(a=>a.href).filter(h=>h.startsWith("https://"));
+        return {title,description,urls};
+      });
+      if(details.title&&details.title.length<160) item.profile_heading=details.title;
+      if(details.description) item.description=details.description.slice(0,500);
+      item.website=details.urls.find(h=>{try{
+        const u=new URL(h);return u.hostname!==root.hostname&&!/(facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
+      }catch{return false;}})||null;
+      item.profile_status="review_required";
+    }catch(e){item.profile_status="unavailable";failures.push({url:item.profile_url,error:String(e).slice(0,200)});}
+  }
+} finally {await browser.close();}
 const output={source:root.href,selectedEditionYear:year,editionVerified:false,coverage:"partial_unverified",pagesQueued:queue.length,pagesFailed:failures,completenessVerified:false,candidates:[...found.values()]};
 await writeFile("exhibitor-candidates-review.json",JSON.stringify(output,null,2));
 console.log("Saved",output.candidates.length,"unverified candidates to exhibitor-candidates-review.json");
