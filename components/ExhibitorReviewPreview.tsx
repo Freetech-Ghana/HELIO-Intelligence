@@ -429,10 +429,23 @@ async function readDirectory() {
       body: JSON.stringify({ exhibitionId })
     });
 
-    const result = await response.json();
+    const responseText = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      const isHtml = /^\\s*<(?:!doctype|html)/i.test(responseText);
+      throw new Error(
+        `Directory API returned ${isHtml ? "an HTML page instead of JSON" : "an invalid JSON response"} (HTTP ${response.status}). ` +
+        (response.status === 404 ? "Check that the preview-directory API route exists in the running build." :
+          response.status >= 500 ? "Check the Next.js server terminal for the underlying error." :
+          "Check your login session and server routing.") +
+        " No exhibitors were imported."
+      );
+    }
 
     if (!response.ok) {
-      throw new Error(result.error || "Directory reading failed.");
+      throw new Error(result?.error || `Directory reading failed (HTTP ${response.status}).`);
     }
 
     const exhibitors = result.exhibitors || [];
