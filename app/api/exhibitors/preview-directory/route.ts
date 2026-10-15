@@ -184,12 +184,13 @@ function extract(html: string, source: string) {
 
     if (!approved(url.href)) continue;
 
-    if (!/\/exhibitor(?:s)?\/[^/?#]+|\/exhibitor-details\/[^/?#]+|\/en\/sites\/exhibitors\/[^/?#]+/i.test(url.pathname)) continue;
+    if (!/\/exhibitor(?:s)?\/[^/?#]+|\/exhibitor-details(?:\.|\/)[^/?#]+|\/en\/sites\/exhibitors\/[^/?#]+/i.test(url.pathname)) continue;
 
     if (/login|register|services|manual|contact|apply/i.test(url.pathname)) {
       continue;
     }
 
+    if (/^(?:view details|read more|learn more|website|exhibitor details|visit profile)$/i.test(name)) continue;
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
 
