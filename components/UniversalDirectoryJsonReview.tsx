@@ -10,7 +10,7 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
   const [files, setFiles] = useState<string[]>([]);
   const [autoBusy,setAutoBusy] = useState(false);
   const [inspectBusy,setInspectBusy]=useState(false);
-  const [inspection,setInspection]=useState<{platform:string;status:string;count:number;message:string}|null>(null);
+  const [inspection,setInspection]=useState<{platform:string;status:string;count:number;message:string;coverage?:string;enriched?:number}|null>(null);
   async function inspectOfficialDirectory(){
     setInspectBusy(true);setError("");setInspection(null);
     try {
@@ -29,7 +29,9 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
         platform:result.platformDetection?.platform||"unknown",
         status:result.extractionStatus||"unknown",
         count:Number(result.count||0),
-        message:result.extractionDiagnostic||"Inspection completed. All candidates require manual verification."
+        message:result.extractionDiagnostic||"Inspection completed. All candidates require manual verification.",
+        coverage:result.coverage?.note||"Directory coverage has not been verified.",
+        enriched:Number(result.enrichedCount||0)
       });
     } catch(e){setError(e instanceof Error?e.message:"Inspection failed");}
     finally{setInspectBusy(false);}
@@ -109,6 +111,8 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
     {inspection && <div role="status" style={{padding:10,border:"1px solid #ddd",borderRadius:6,marginBottom:12}}>
       <strong>Platform: {inspection.platform} | Status: {inspection.status} | Candidate profiles: {inspection.count}</strong>
       <p>{inspection.message}</p>
+      <p><strong>Coverage:</strong> {inspection.coverage||"Unknown"} </p>
+      <p><strong>Profiles enriched for review:</strong> {inspection.enriched??0} (not independently verified)</p>
       <p>Read-only inspection. Candidates are not verified exhibitors and nothing was imported.</p>
     </div>}
     <p><button type="button" disabled={!exhibitionId||autoBusy||!editionStatus?.canAutomaticallyRead} onClick={()=>void autoRead()}>{autoBusy?"Reading pages...":"Read supported directory automatically"}</button></p>
