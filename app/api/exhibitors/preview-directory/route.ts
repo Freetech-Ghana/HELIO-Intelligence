@@ -315,6 +315,34 @@ export async function POST(request: NextRequest) {
       }
     }
     const page = await readPage(url);
+    // RX Global can reuse the same directory URL for a later edition.
+    // Never treat a current-site listing as proof of an older edition.
+    if (/theairportshow\\.com$/i.test(new URL(page.source).hostname)) {
+      const eventJson = page.html.match(/<script[^>]*type=["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/i)?.[1];
+      let sourceYear: number | null = null;
+      if (eventJson) {
+        try {
+          const data = JSON.parse(eventJson);
+          const events = Array.isArray(data) ? data : [data];
+          for (const item of events) {
+            if (item?.["@type"] === "Event" && typeof item.startDate === "string") {
+              const year = Number(item.startDate.match(/^(20\\d{2})/)?.[1]);
+              if (Number.isInteger(year)) { sourceYear = year; break; }
+            }
+          }
+        } catch { /* Invalid structured data cannot establish edition */ }
+      }
+      if (sourceYear && sourceYear !== Number(exhibition.edition_year)) {
+        return NextResponse.json({
+          error: `Edition mismatch: official Airport Show page identifies ${sourceYear}, but the selected HELIO exhibition is ${exhibition.edition_year}. Do not import from this directory into the wrong edition.`,
+          extractionStatus: "edition_mismatch",
+          source: page.source,
+          sourceEditionYear: sourceYear,
+          selectedEditionYear: Number(exhibition.edition_year),
+          exhibitors: [], count: 0
+        }, { status: 409 });
+      }
+    }
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
     const dynamicDirectory = /theairportshow\.com$/i.test(url.hostname) && exhibitors.length === 0;
     return NextResponse.json({
