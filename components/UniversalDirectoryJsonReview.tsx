@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { db } from "../lib/db";
+import CompanyReviewCentre from "./CompanyReviewCentre";
 import { inspectDirectoryJson, type DirectoryReview } from "../lib/exhibition-directory-adapters";
 
 export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionId:string}) {
@@ -189,5 +190,6 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
         </table>
       </div>
     </div>}
+    <CompanyReviewCentre />
   </details>;
 }
