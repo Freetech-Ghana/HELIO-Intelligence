@@ -24,7 +24,7 @@ try{
     const standLine=standIndex>=0?lines[standIndex]:"";
     const match=standLine.match(/^Stand No\s*[-:]\s*(.+?),\s*(.+)$/i);
     const aboutIndex=lines.findIndex(x=>/^About the company$/i.test(x));
-    const stop=/^(Brochures|Products|Product Categories|Send Enquiry|Contact|Gallery|Videos|Social Media|Brands)$/i;
+    const stop=/^(Brochures|Products|Product Categories|Send Enquiry|Contact|Gallery|Videos|Social Media|Brands|ABOUT US\s*\||MEMBER OF|Exhibitor Listing by)/i;
     const about=[];
     if(aboutIndex>=0)for(let i=aboutIndex+1;i<lines.length&&about.length<20;i++){if(stop.test(lines[i]))break;about.push(lines[i]);}
     return {stand:match?.[1]?.trim()||null,hall:match?.[2]?.trim()||null,country:standIndex>=0?lines.slice(standIndex+1,standIndex+4).find(x=>!/^(?:Â|\\u00a0|https?:|Send Enquiry)/i.test(x)&&!/^Stand No/i.test(x))||null:null,description:about.join(" ").slice(0,2000)||null,standLine};
@@ -32,7 +32,7 @@ try{
    item.stand_number=result.stand;
    item.hall=result.hall;
    item.country=result.country;
-   if(result.description)item.company_description=result.description;
+   item.company_description=result.description||null;
    item.details_status=result.stand||result.hall||result.country||result.description?"review_required":"not_found";
   }catch(e){item.details_status="unavailable";item.details_error=String(e).slice(0,180);failed++;}
   item.details_checked_at=new Date().toISOString();
