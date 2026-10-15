@@ -1,12 +1,31 @@
 "use client";
 import { useMemo, useState } from "react";
+import { db } from "../lib/db";
 import { inspectDirectoryJson, type DirectoryReview } from "../lib/exhibition-directory-adapters";
 
-export default function UniversalDirectoryJsonReview() {
+export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionId:string}) {
   const [report, setReport] = useState<DirectoryReview | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [files, setFiles] = useState<string[]>([]);
+  const [autoBusy,setAutoBusy] = useState(false);
+  async function autoRead() {
+    setAutoBusy(true);setError("");setReport(null);
+    try {
+      const {data:{session}}=await db().auth.getSession();
+      if (!session) throw new Error("Please sign in first.");
+      const response=await fetch("/api/exhibitors/read-rx-algolia",{
+        method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},
+        body:JSON.stringify({exhibitionId})
+      });
+      const result=await response.json();
+      if (!response.ok) throw new Error(result.error||"Automatic reader unavailable");
+      setReport(result as DirectoryReview);
+      setFiles(["Automatic read — "+result.fetchedPages+" pages"]);
+    } catch(e) {setError(e instanceof Error?e.message:"Automatic read failed");}
+    finally {setAutoBusy(false);}
+  }
+
   async function onFiles(chosen: FileList | null) {
     if (!chosen?.length) return;
     setError(""); setReport(null);
@@ -40,6 +59,7 @@ export default function UniversalDirectoryJsonReview() {
   return <details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
     <summary style={{cursor:"pointer",fontWeight:600}}>Universal Exhibition JSON Reader — review only</summary>
     <p>Upload one or more JSON pages from an authorized official exhibitor directory. The adapter recognizes supported directory platforms; it never imports automatically.</p>
+    <p><button type="button" disabled={!exhibitionId||autoBusy} onClick={()=>void autoRead()}>{autoBusy?"Reading pages...":"Read supported directory automatically"}</button></p>
     <input type="file" accept=".json,.txt,application/json" multiple onChange={e=>void onFiles(e.target.files)} aria-label="Upload directory JSON pages" />
     {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
     {report && <div>
