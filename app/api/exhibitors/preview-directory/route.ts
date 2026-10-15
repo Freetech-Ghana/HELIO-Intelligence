@@ -254,6 +254,26 @@ function extractHr2026(html: string, source: string) {
   return rows;
 }
 
+// Conservative same-origin pagination: explicit numbered links only, max 5 pages.
+// Never infer completeness from the absence of pagination links.
+function paginationLinks(html:string, base:string):URL[] {
+  const result:URL[]=[];
+  for (const m of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const href=m[1].match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (!href) continue;
+    const label=clean(m[2]);
+    const rel=m[1].match(/\brel\s*=\s*["']([^"']+)["']/i)?.[1]||"";
+    if (!(/^\d{1,3}$/.test(label)||/\bnext\b/i.test(label+" "+rel))) continue;
+    let url:URL;
+    try {url=new URL(decodeHtml(href),base);}catch{continue;}
+    if (!approved(url.href)||url.origin!==new URL(base).origin) continue;
+    if (!/(?:[?&](?:page|p)=\d+|\/page\/\d+\/?)/i.test(url.href)) continue;
+    if (url.href!==base&&!result.some(x=>x.href===url.href)) result.push(url);
+    if (result.length>=4) break;
+  }
+  return result;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateApi(request);
@@ -337,7 +357,30 @@ export async function POST(request: NextRequest) {
     }
     const rx = inspectRxDirectory(page.html);
     const platformDetection = detectDirectoryPlatform(page.source,page.html);
-    const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
+    const candidates = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
+    const pages = paginationLinks(page.html,page.source);
+    let pagesScanned=1;
+    let pagesFailed=0;
+    const visited=new Set([page.source]);
+    for (const next of pages) {
+      if (visited.has(next.href)) continue;
+      visited.add(next.href);
+      try {
+        const extra=await readPage(next);
+        pagesScanned++;
+        const found=hr2026?extractHr2026(extra.html,extra.source):extract(extra.html,extra.source);
+        candidates.push(...found);
+      } catch {pagesFailed++; }
+    }
+    const unique=new Map<string,(typeof candidates)[number]>();
+    for (const candidate of candidates) {
+      const key=candidate.profile_url.toLowerCase().replace(/\/$/,"");
+      if (!unique.has(key)) unique.set(key,candidate);
+    }
+    const exhibitors=[...unique.values()];
+    const coverage={status:"partial_unverified",discovered:exhibitors.length,officialTotal:null,
+      pagesScanned,pagesFailed,paginationLinksFound:pages.length,paginationChecked:true,
+      note:"Scanned "+pagesScanned+" official HTML page(s). Only explicit numbered pagination links were followed (maximum 5 pages). Dynamic listings and unlinked pages may remain. The total exhibitor count is not verified."};
     // Read a small, bounded set of official public profiles for review only.
     // A failed profile must not erase directory candidates.
     const enriched = await Promise.all(exhibitors.slice(0, 10).map(async candidate => {
@@ -359,6 +402,7 @@ export async function POST(request: NextRequest) {
       exhibition: exhibition.name,
       source: page.source,
       exhibitors,
+      coverage,
       count: exhibitors.length,
       platformDetection,
       rxDirectory: rx.rxDetected ? { platform: "RX Global Show Planning", editionId: rx.editionId, apiOrigin: rx.apiOrigin, status: "api_adapter_pending", note: "The public HTML does not expose exhibitor records. A documented or browser-observed permitted API request is needed before extraction." } : null,
