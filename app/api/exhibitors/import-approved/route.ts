@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateApi } from "../../../../lib/api-auth";
+import { getRxSource } from "../../../../lib/rx-source-registry";
 
 export const runtime = "nodejs";
 
@@ -89,15 +90,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // RX reuses its public Airport Show directory URL across editions.
-    // The current page identifies 2027; an archived 2026 source must be used
-    // for 2026 records. Fail closed rather than mixing event editions.
-    if (/^(?:www\.)?theairportshow\.com$/i.test(directory.hostname) &&
-        /\/en-gb\/exhibitor-directory\.html$/i.test(directory.pathname) &&
-        Number(exhibition.edition_year) === 2026) {
-      return NextResponse.json({
-        error: "The live Airport Show directory currently identifies the 2027 edition. Use a verified 2026 archive before importing into Airport Show 2026."
-      }, { status: 409 });
+    // Airport Show currently exposes a shared directory across editions.
+    // A public event date alone cannot prove the exhibitor listing's edition.
+    // Require an independently verified, edition-specific source before any
+    // manual approval flow can write Airport Show exhibitors to the database.
+    if (/^(?:www\\.)?theairportshow\\.com$/i.test(directory.hostname)) {
+      let verified=false;
+      try {
+        const source=getRxSource(exhibitionId);
+        verified=Boolean(source &&
+          source.year===Number(exhibition.edition_year) &&
+          source.directoryHost.toLowerCase()===directory.hostname.toLowerCase());
+      } catch { verified=false; }
+      if (!verified) {
+        return NextResponse.json({
+          error:"Airport Show exhibitor import is paused: the directory's exhibitor edition has not been independently verified for this HELIO exhibition. Read-only review is still available.",
+          code:"edition_not_verified"
+        },{status:409});
+      }
     }
 
     const prepared: ApprovedExhibitor[] = [];
