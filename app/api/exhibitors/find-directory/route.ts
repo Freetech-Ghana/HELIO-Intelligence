@@ -18,7 +18,7 @@ export async function POST(request:NextRequest) {
   if(!name||!Number.isInteger(year)||year<2000||year>2100) return NextResponse.json({error:"Exhibition name or year is missing"},{status:422});
   const queries=[
     name+" "+year+" official exhibitor directory",
-    name+" "+year+" exhibitors list site:official",
+    name+" "+year+" exhibitor directory floorplan",
     name+" "+year+" exhibitors sponsors directory"
   ];
   const searchLinks=queries.map(query=>({query,url:"https://www.google.com/search?q="+encodeURIComponent(query)}));
