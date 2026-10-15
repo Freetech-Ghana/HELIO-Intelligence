@@ -5,6 +5,24 @@ import { inspectDirectoryJson, type DirectoryReview } from "../lib/exhibition-di
 
 export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionId:string}) {
   const [report, setReport] = useState<DirectoryReview | null>(null);
+  const [finderBusy,setFinderBusy]=useState(false);
+  const [finder,setFinder]=useState<{exhibition:string;editionYear:number;savedDirectoryUrl:string|null;searchLinks:{query:string;url:string}[];notice:string}|null>(null);
+  async function findDirectory(){
+    setFinderBusy(true);setError("");setFinder(null);
+    try {
+      const {data:{session}}=await db().auth.getSession();
+      if(!session) throw Error("Please sign in first.");
+      const response=await fetch("/api/exhibitors/find-directory",{
+        method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},
+        body:JSON.stringify({exhibitionId})
+      });
+      const result=await response.json();
+      if(!response.ok) throw Error(result.error||"Directory search preparation failed");
+      setFinder(result);
+    }catch(e){setError(e instanceof Error?e.message:"Directory finder failed");}
+    finally{setFinderBusy(false);}
+  }
+
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [files, setFiles] = useState<string[]>([]);
@@ -106,6 +124,16 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
   return <details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
     <summary style={{cursor:"pointer",fontWeight:600}}>Universal Exhibition JSON Reader — review only</summary>
     <p>Upload one or more JSON pages from an authorized official exhibitor directory. The reader supports RX Global JSON and explicitly normalized MapYourShow/ExpoPlatform JSON. Inspect an official directory to detect its platform and preview public HTML profile candidates. Nothing is imported automatically.</p>
+    <div style={{padding:12,marginBottom:12,border:"1px solid #ddd",borderRadius:6}}>
+      <strong>Universal directory source finder — Stage 1</strong>
+      <p>Generate official-directory searches for the selected exhibition and year, even when no directory URL is saved. Search results must be reviewed before reading or importing.</p>
+      <button type="button" disabled={!exhibitionId||finderBusy} onClick={()=>void findDirectory()}>{finderBusy?"Preparing directory search...":"Find official directory sources"}</button>
+      {finder && <div role="status" style={{marginTop:10}}>
+        <p><strong>{finder.exhibition} ({finder.editionYear})</strong> — Saved directory: {finder.savedDirectoryUrl||"None"}</p>
+        <ul>{finder.searchLinks.map(link=><li key={link.query}><a href={link.url} target="_blank" rel="noopener noreferrer">{link.query}</a></li>)}</ul>
+        <p>{finder.notice}</p>
+      </div>}
+    </div>
     {editionStatus && <div role="status" style={{padding:10,marginBottom:12,background:"#f5f6f8",borderRadius:6}}><strong>Edition verification ({editionStatus.selectedYear}): {editionStatus.label}</strong><p>{editionStatus.note}</p></div>}
     <p><button type="button" disabled={!exhibitionId||inspectBusy} onClick={()=>void inspectOfficialDirectory()}>{inspectBusy?"Inspecting official directory...":"Detect directory platform and preview candidates"}</button></p>
     {inspection && <div role="status" style={{padding:10,border:"1px solid #ddd",borderRadius:6,marginBottom:12}}>
