@@ -106,7 +106,7 @@ const crawler=new PlaywrightCrawler({
       for(const choice of choices.slice(0,8)){
         const before=await signature();
         const locator=page.locator('a,button,[role="button"]').nth(choice.index);
-        try{await locator.click({timeout:3500});}catch(e){clickAttempts.push({text:choice.text,error:String(e).slice(0,100)});continue;}
+        try{await locator.scrollIntoViewIfNeeded({timeout:2500});await locator.click({timeout:5000});}catch(e){clickAttempts.push({text:choice.text,error:String(e).slice(0,500)});continue;}
         let after=before;
         for(let wait=0;wait<10;wait++){
           await page.waitForTimeout(400);
