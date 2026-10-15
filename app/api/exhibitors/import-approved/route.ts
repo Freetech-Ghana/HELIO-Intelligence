@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     const { data: exhibition, error: exhibitionError } =
       await db
         .from("exhibitions")
-        .select("id,directory_url")
+        .select("id,name,edition_year,directory_url")
         .eq("id", exhibitionId)
         .eq("owner_id", user.id)
         .single();
@@ -115,6 +115,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // RX reuses its public Airport Show directory URL across editions.
+    // The current page identifies 2027; an archived 2026 source must be used
+    // for 2026 records. Fail closed rather than mixing event editions.
+    if (/^(?:www\\.)?theairportshow\\.com$/i.test(directory.hostname) &&
+        /\\/en-gb\\/exhibitor-directory\\.html$/i.test(directory.pathname) &&
+        Number(exhibition.edition_year) === 2026) {
+      return NextResponse.json({
+        error: "The live Airport Show directory currently identifies the 2027 edition. Use a verified 2026 archive before importing into Airport Show 2026."
+      }, { status: 409 });
+    }
+
     const prepared: ApprovedExhibitor[] = [];
     const seen = new Set<string>();
 
@@ -137,7 +148,12 @@ export async function POST(request: NextRequest) {
         if (
           profile.protocol !== "https:" ||
           profile.origin !== directory.origin ||
-          !profile.pathname.startsWith("/exhibitors/") ||
+          !(
+            /^\\/exhibitors?\\/[^/]+/i.test(profile.pathname) ||
+            /^\\/en-gb\\/exhibitor-details(?:\\.|\\/)[^/]+/i.test(profile.pathname) ||
+            /^\\/en\\/sites\\/exhibitors\\/[^/]+/i.test(profile.pathname) ||
+            /^\\/hr-summit-expo\\/sponsors\\/[^/]+/i.test(profile.pathname)
+          ) ||
           profile.username ||
           profile.password
         ) {
