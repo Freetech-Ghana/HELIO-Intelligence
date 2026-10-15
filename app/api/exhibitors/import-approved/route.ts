@@ -4,6 +4,15 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+const OFFICIAL_DIRECTORY_HOSTS = new Set([
+  "gulfhost.ae", "www.gulfhost.ae",
+  "ism-me.com", "www.ism-me.com",
+  "dwtc.com", "www.dwtc.com",
+  "informaconnect.com", "www.informaconnect.com",
+  "theairportshow.com", "www.theairportshow.com",
+  "airportshow.german-pavilion.com"
+]);
+
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -105,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     try {
       directory = new URL(exhibition.directory_url);
-      if (directory.protocol !== "https:") {
+      if (directory.protocol !== "https:" || directory.username || directory.password || directory.port || !OFFICIAL_DIRECTORY_HOSTS.has(directory.hostname.toLowerCase())) {
         throw new Error("HTTPS required");
       }
     } catch {
@@ -155,7 +164,8 @@ export async function POST(request: NextRequest) {
             /^\/hr-summit-expo\/sponsors\/[^/]+/i.test(profile.pathname)
           ) ||
           profile.username ||
-          profile.password
+          profile.password ||
+          profile.port
         ) {
           throw new Error("Invalid profile URL");
         }
