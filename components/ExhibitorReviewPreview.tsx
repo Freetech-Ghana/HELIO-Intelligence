@@ -512,7 +512,9 @@ setBulkProgress("");
 setShowEnrichedDetails(false);
 setShowEnrichedDetails(false);
 setApprovedProfiles([]);
-    setReadMessage(exhibitors.length ? `${exhibitors.length} candidate exhibitors found. Review before importing.` : (result.extractionDiagnostic || "No exhibitor profile links could be extracted from this page. Do not interpret this as zero exhibitors."));
+    const platform = result.platformDetection;
+    const platformNote = platform ? `Platform: ${platform.platform} | Adapter: ${platform.adapterStatus} | Confidence: ${platform.confidence}. ` : "";
+    setReadMessage(platformNote + (exhibitors.length ? `${exhibitors.length} candidate exhibitors found. Review before importing.` : (result.extractionDiagnostic || "No exhibitor profile links could be extracted from this page. Do not interpret this as zero exhibitors.")));
   } catch (error) {
     setReadMessage(error instanceof Error ? error.message : "Reading failed.");
   } finally {
