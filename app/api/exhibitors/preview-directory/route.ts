@@ -344,15 +344,15 @@ export async function POST(request: NextRequest) {
       }
     }
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
-    const dynamicDirectory = /theairportshow\.com$/i.test(url.hostname) && exhibitors.length === 0;
+    const dynamicDirectory = exhibitors.length === 0 && (/theairportshow\.com$/i.test(url.hostname) || /reactSettingsShowPlanning|css-components\.rxweb-prd\.com\/packages\/show-planning|api\.reedexpo\.com/i.test(page.html));
     return NextResponse.json({
       exhibition: exhibition.name,
       source: page.source,
       exhibitors,
       count: exhibitors.length,
-      extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : "Directory profile links",
+      extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : dynamicDirectory ? "RX Global dynamic directory (adapter required)" : "Directory profile links",
       extractionStatus: dynamicDirectory ? "javascript_adapter_required" : exhibitors.length ? "candidates_found" : "no_supported_profile_links",
-      extractionDiagnostic: dynamicDirectory ? "The Airport Show official directory was reached, but exhibitor profiles were not present as supported HTML links. A JavaScript/API-specific adapter is required; zero extracted is not zero exhibitors." : exhibitors.length ? "Exhibitor profile candidates extracted for review." : "No supported profile links found in the fetched HTML. The directory may be dynamically rendered or use another link format.",
+      extractionDiagnostic: dynamicDirectory ? "This official directory uses an RX Global JavaScript component or API-backed listing. The static HTML reader found no company profiles. A permitted source-specific data adapter is needed; zero extracted does not mean zero exhibitors." : exhibitors.length ? "Exhibitor profile candidates extracted for review." : "No supported profile links found in the fetched HTML. The directory may be dynamically rendered or use another link format.",
       notice: "Candidate records only. Verify each company and its participation before importing. No data was saved."
     });
 
