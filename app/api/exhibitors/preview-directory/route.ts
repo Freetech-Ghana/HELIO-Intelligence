@@ -254,6 +254,41 @@ function extractHr2026(html: string, source: string) {
   return rows;
 }
 
+// Generic structured-data extractor for public exhibitor profiles.
+// Treat JSON-LD Organization entries as candidates only when a profile URL
+// explicitly points to an exhibitor page on the inspected directory origin.
+function extractStructuredProfiles(html:string,source:string):ReturnType<typeof extract> {
+  const rows:ReturnType<typeof extract>=[];
+  const seen=new Set<string>();
+  const origin=new URL(source).origin;
+  const visit=(item:unknown,depth:number):void=>{
+    if(depth>6||!item||typeof item!=="object") return;
+    if(Array.isArray(item)){for(const part of item.slice(0,500))visit(part,depth+1);return;}
+    const obj=item as Record<string,unknown>;
+    const types=Array.isArray(obj["@type"])?obj["@type"]:[obj["@type"]];
+    if(types.some(t=>typeof t==="string"&&/^(Organization|Corporation|LocalBusiness|ExhibitionEvent)$/i.test(t))) {
+      const name=typeof obj.name==="string"?obj.name.trim():"";
+      const raw=typeof obj.url==="string"?obj.url:typeof obj["@id"]==="string"?obj["@id"]:"";
+      try {
+        const url=new URL(raw,source);
+        if(name.length>=2&&name.length<=150&&url.origin===origin&&approved(url.href)&&
+          /\/exhibitors?\/[^/?#]+|\/exhibitor-details(?:\.|\/)[^/?#]+|\/en\/sites\/exhibitors\/[^/?#]+/i.test(url.pathname)&&
+          !seen.has(url.href)) {
+          seen.add(url.href);
+          rows.push({company_name:name,country:"",hall:"",stand:"",profile_url:url.href});
+        }
+      }catch{/* Invalid URL is not a candidate */}
+    }
+    for(const key of ["@graph","itemListElement","item","mainEntity","about","member","subEvent"]){
+      if(obj[key]) visit(obj[key],depth+1);
+    }
+  };
+  for(const match of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
+    try{visit(JSON.parse(match[1]),0);}catch{/* Malformed structured data */}
+  }
+  return rows.slice(0,500);
+}
+
 // Conservative same-origin pagination: explicit numbered links only, max 5 pages.
 // Never infer completeness from the absence of pagination links.
 function paginationLinks(html:string, base:string):URL[] {
@@ -357,7 +392,7 @@ export async function POST(request: NextRequest) {
     }
     const rx = inspectRxDirectory(page.html);
     const platformDetection = detectDirectoryPlatform(page.source,page.html);
-    const candidates = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
+    const candidates = hr2026 ? extractHr2026(page.html, page.source) : [...extract(page.html, page.source),...extractStructuredProfiles(page.html,page.source)];
     const pages = paginationLinks(page.html,page.source);
     let pagesScanned=1;
     let pagesFailed=0;
@@ -368,7 +403,7 @@ export async function POST(request: NextRequest) {
       try {
         const extra=await readPage(next);
         pagesScanned++;
-        const found=hr2026?extractHr2026(extra.html,extra.source):extract(extra.html,extra.source);
+        const found=hr2026?extractHr2026(extra.html,extra.source):[...extract(extra.html,extra.source),...extractStructuredProfiles(extra.html,extra.source)];
         candidates.push(...found);
       } catch {pagesFailed++; }
     }
@@ -402,6 +437,8 @@ export async function POST(request: NextRequest) {
       exhibition: exhibition.name,
       source: page.source,
       exhibitors,
+      enrichedProfiles:enriched,
+      enrichedCount:enriched.filter(item=>item.profile_status==="review_required").length,
       coverage,
       count: exhibitors.length,
       platformDetection,
