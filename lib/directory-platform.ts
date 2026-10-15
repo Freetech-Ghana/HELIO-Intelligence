@@ -1,16 +1,35 @@
-export type DirectoryPlatform = "rx_global" | "mapyourshow" | "expoplatform" | "static_html" | "unknown";
-export type DirectoryDetection = {platform:DirectoryPlatform; confidence:"high"|"medium"|"low"; signals:string[]; adapterStatus:"inspection_only"|"static_reader_available"|"needs_integration"};
-export function detectDirectoryPlatform(sourceUrl:string, html:string):DirectoryDetection {
-  const signals:string[]=[];
-  let host="";
-  try {host=new URL(sourceUrl).hostname.toLowerCase();} catch {}
-  if (/reactSettingsShowPlanning|algoliaConfig|api\.reedexpo\.com|rxweb-prd/i.test(html) || /theairportshow\.com$/.test(host)) {
-    if (/reactSettingsShowPlanning|algoliaConfig/i.test(html)) signals.push("RX Global show-planning application");
-    if (/api\.reedexpo\.com/i.test(html)) signals.push("RX Global API origin referenced");
-    return {platform:"rx_global",confidence:signals.length?"high":"medium",signals,adapterStatus:"inspection_only"};
-  }
-  if (/mapyourshow\.com|mapyourshow/i.test(html+" "+host)) return {platform:"mapyourshow",confidence:"high",signals:["MapYourShow platform reference"],adapterStatus:"needs_integration"};
-  if (/expoplatform\.com|expoplatform/i.test(html+" "+host)) return {platform:"expoplatform",confidence:"high",signals:["ExpoPlatform reference"],adapterStatus:"needs_integration"};
-  if (/<a\b[^>]*href/i.test(html) && /exhibitor/i.test(html)) return {platform:"static_html",confidence:"low",signals:["HTML links detected; company profile verification still required"],adapterStatus:"static_reader_available"};
-  return {platform:"unknown",confidence:"low",signals:[],adapterStatus:"needs_integration"};
+import { platformFingerprint, type PlatformKey } from "./directory-platform-registry";
+
+export type DirectoryPlatform = PlatformKey;
+export type DirectoryDetection = {
+  platform:DirectoryPlatform;
+  confidence:"high"|"medium"|"low";
+  signals:string[];
+  adapterStatus:"inspection_only"|"static_reader_available"|"needs_integration";
+  readerKind?:"verified_api"|"public_html"|"browser_rendered"|"manual_review";
+  paginationStrategy?:string;
+  verificationRequirement?:string;
+};
+
+export function detectDirectoryPlatform(sourceUrl:string,html:string):DirectoryDetection {
+  const match=platformFingerprint(sourceUrl,html);
+  if(match) return {
+    platform:match.definition.key,
+    confidence:match.confidence,
+    signals:match.signals,
+    adapterStatus:match.definition.key==="rx_global"?"inspection_only":"needs_integration",
+    readerKind:match.definition.reader,
+    paginationStrategy:match.definition.pagination,
+    verificationRequirement:match.definition.verification
+  };
+  if (/<a\b[^>]*href/i.test(html) && /exhibitor/i.test(html)) return {
+    platform:"static_html",confidence:"low",
+    signals:["HTML exhibitor links detected; profiles require review"],
+    adapterStatus:"static_reader_available",readerKind:"public_html",
+    paginationStrategy:"html_links",
+    verificationRequirement:"Confirm directory edition and exhibitor participation."
+  };
+  return {platform:"unknown",confidence:"low",signals:[],
+    adapterStatus:"needs_integration",readerKind:"manual_review",
+    paginationStrategy:"unknown",verificationRequirement:"Identify the official directory and its edition."};
 }
