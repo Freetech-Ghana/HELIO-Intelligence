@@ -37,6 +37,7 @@ const visited=new Set();
 const queue=[root.href];
 const failures=[];
 const limit=5;
+const pageLimit=12;
 const crawler=new PlaywrightCrawler({
   maxRequestsPerCrawl:limit,
   maxConcurrency:1,
@@ -66,7 +67,7 @@ const crawler=new PlaywrightCrawler({
     };
     for(const a of data) await record(a);
     // Re-read the listing after bounded Load More interactions and scrolling.
-    for(let round=0;round<4;round++){
+    for(let round=0;round<pageLimit;round++){
       let advanced=false;
       for(const selector of ['button:has-text("Load more")','button:has-text("Show more")','a:has-text("Load more")']){
         const button=page.locator(selector).first();
@@ -109,10 +110,10 @@ try {
         const urls=[...document.querySelectorAll("a[href]")].map(a=>a.href).filter(h=>h.startsWith("https://"));
         return {title,description,urls};
       });
-      if(details.title&&details.title.length<160) item.profile_heading=details.title;
-      if(details.description) item.description=details.description.slice(0,500);
+      if(details.title&&details.title.length<160) {item.profile_heading=details.title;if(!item.company_name||/^(?:\.{2,}|view|details|read more)$/i.test(item.company_name.trim())) item.company_name=details.title;}
+      if(details.description&&!/discover the latest industry products|view our exhibitor list|sneak peek at the brands/i.test(details.description)) item.description=details.description.slice(0,500);
       item.website=details.urls.find(h=>{try{
-        const u=new URL(h);return u.hostname!==root.hostname&&!/(facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
+        const u=new URL(h);return u.hostname!==root.hostname&&!u.hostname.endsWith(".big5global.com")&&!/(big5global|facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
       }catch{return false;}})||null;
       item.profile_status="review_required";
     }catch(e){item.profile_status="unavailable";failures.push({url:item.profile_url,error:String(e).slice(0,200)});}
