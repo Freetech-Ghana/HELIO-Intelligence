@@ -338,6 +338,20 @@ export async function POST(request: NextRequest) {
     const rx = inspectRxDirectory(page.html);
     const platformDetection = detectDirectoryPlatform(page.source,page.html);
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
+    // Read a small, bounded set of official public profiles for review only.
+    // A failed profile must not erase directory candidates.
+    const enriched = await Promise.all(exhibitors.slice(0, 10).map(async candidate => {
+      try {
+        const target=approved(candidate.profile_url);
+        if (!target || new URL(page.source).origin!==target.origin) return {...candidate,profile_status:"blocked",website:"",description:""};
+        const profile=await readPage(target);
+        const title=clean(profile.html.match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/i)?.[1]||"");
+        const description=decodeHtml(profile.html.match(/<meta\\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1]||"").slice(0,1000);
+        const links=[...profile.html.matchAll(/<a\\b[^>]*href=["'](https:\\/\\/[^"']+)["']/gi)].map(m=>m[1]);
+        const website=links.find(link=>{try{const u=new URL(link);return u.hostname!==target.hostname && !/facebook|linkedin|instagram|twitter|youtube|wa\\.me/i.test(u.hostname)}catch{return false}})||"";
+        return {...candidate,company_name:title&&title.length<160?title:candidate.company_name,description,website,profile_status:"review_required"};
+      } catch {return {...candidate,description:"",website:"",profile_status:"unavailable"};}
+    }));
     const dynamicDirectory = exhibitors.length === 0 && (/theairportshow\.com$/i.test(url.hostname) || /reactSettingsShowPlanning|css-components\.rxweb-prd\.com\/packages\/show-planning|api\.reedexpo\.com/i.test(page.html));
     return NextResponse.json({
       exhibition: exhibition.name,
