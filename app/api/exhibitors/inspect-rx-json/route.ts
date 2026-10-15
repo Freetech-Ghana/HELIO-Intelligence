@@ -9,11 +9,12 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (!token || !url || !key) return NextResponse.json({error:"Unauthorized"}, {status:401});
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!token) return NextResponse.json({error:"Login session missing. Sign out and sign in again.",code:"missing_token"}, {status:401});
+    if (!url || !key) return NextResponse.json({error:"Server Supabase URL or publishable key is missing.",code:"missing_config"}, {status:500});
     const db = createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${token}`}}});
-    const {data:{user}} = await db.auth.getUser(token);
-    if (!user) return NextResponse.json({error:"Unauthorized"}, {status:401});
+    const {data:{user},error:authError} = await db.auth.getUser(token);
+    if (authError || !user) return NextResponse.json({error:"Supabase could not verify the session. Sign out and sign in again, then retry.",code:"invalid_session",details:authError?.message || "No user returned"}, {status:401});
     const body = await request.json();
     if (typeof body?.exhibitionId !== "string" || typeof body?.rawJson !== "string" || body.rawJson.length > 1500000) {
       return NextResponse.json({error:"An exhibition ID and JSON response (up to 1.5 MB) are required."}, {status:400});
