@@ -190,6 +190,6 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
         </table>
       </div>
     </div>}
-    <CompanyReviewCentre />
+    <CompanyReviewCentre exhibitionId={exhibitionId} />
   </details>;
 }
