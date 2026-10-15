@@ -77,42 +77,54 @@ const crawler=new PlaywrightCrawler({
       }
     };
     for(const a of data) await record(a);
-    // JavaScript pagination: controls may use javascript:void(0) instead of URLs.
-    // Follow the visible Next control, or numbered page controls, while content changes.
+    // Generic JavaScript pagination: try Next, then visible numbered links.
     const readAnchors=()=>page.locator("a[href]").evaluateAll(anchors=>anchors.map(a=>({
       name:(a.textContent||a.querySelector("img")?.getAttribute("alt")||"").replace(/\s+/g," ").trim(),
       href:a.href,rel:a.getAttribute("rel")||""
     })).slice(0,5000));
     const signature=async()=>JSON.stringify((await readAnchors()).filter(a=>a.href.toLowerCase().includes("/exhibitor/exbdetails/")).map(a=>a.href).slice(0,40));
-    let lastSignature=await signature();
+    const seenSignatures=new Set([await signature()]);
+    const clickAttempts=[];
     let clickedPages=0;
     for(let turn=0;turn<30;turn++){
-      const controls=page.locator('a,button,[role="button"]');
-      const candidates=await controls.evaluateAll(nodes=>nodes.map((el,index)=>({
-        index,
-        text:(el.textContent||"").replace(/\s+/g," ").trim(),
-        label:el.getAttribute("aria-label")||"",
-        title:el.getAttribute("title")||"",
-        href:el.getAttribute("href")||"",
-        disabled:el.hasAttribute("disabled")||el.getAttribute("aria-disabled")==="true",
-        cls:typeof el.className==="string"?el.className:""
-      })).filter(x=>!x.disabled&&(/^(?:next|next page|»|›|Â»|>>)$/i.test(x.text)||/next/i.test(x.label+" "+x.title))&&(x.href.toLowerCase().includes("javascript:void(0)")||/page|pagination|pager/i.test(x.cls+" "+x.label+" "+x.title))).slice(0,10));
-      const next=candidates[0];
-      if(!next) break;
-      const control=controls.nth(next.index);
-      if(!(await control.isVisible().catch(()=>false))) break;
-      await control.click({timeout:5000}).catch(()=>{});
-      let updated=lastSignature;
-      for(let wait=0;wait<8;wait++){
-        await page.waitForTimeout(450);
-        updated=await signature();
-        if(updated!==lastSignature) break;
+      const options=await page.locator('a,button,[role="button"]').evaluateAll(nodes=>nodes.map((el,index)=>{
+        const text=(el.textContent||"").replace(/\s+/g," ").trim();
+        const label=(el.getAttribute("aria-label")||"")+" "+(el.getAttribute("title")||"");
+        const href=el.getAttribute("href")||"";
+        const disabled=el.hasAttribute("disabled")||el.getAttribute("aria-disabled")==="true";
+        const visible=!!(el.getClientRects().length);
+        const parent=el.parentElement;
+        const active=el.getAttribute("aria-current")==="page"||/\b(active|current|selected)\b/i.test((el.className||"")+" "+(parent?.className||""));
+        const isNext=/^(next|next page|»|›|Â»|>>)$/i.test(text)||/\bnext\b/i.test(label);
+        const number=/^\d{1,3}$/.test(text)?Number(text):null;
+        return {index,text,isNext,number,disabled,visible,active,href};
+      }).filter(x=>x.visible&&!x.disabled&&(x.isNext||x.number!==null)&&(x.href.startsWith("javascript:")||x.href==="#"||!x.href)).slice(0,100));
+      const numbered=options.filter(x=>x.number!==null&&!x.active).sort((a,b)=>a.number-b.number);
+      const next=options.find(x=>x.isNext&&!x.active);
+      const choices=[...(next?[next]:[]),...numbered].filter((x,i,a)=>a.findIndex(y=>y.index===x.index)===i);
+      let advanced=false;
+      for(const choice of choices.slice(0,8)){
+        const before=await signature();
+        const locator=page.locator('a,button,[role="button"]').nth(choice.index);
+        try{await locator.click({timeout:3500});}catch(e){clickAttempts.push({text:choice.text,error:String(e).slice(0,100)});continue;}
+        let after=before;
+        for(let wait=0;wait<10;wait++){
+          await page.waitForTimeout(400);
+          after=await signature();
+          if(after!==before) break;
+        }
+        clickAttempts.push({text:choice.text,changed:after!==before});
+        if(after!==before&&!seenSignatures.has(after)){
+          seenSignatures.add(after);
+          clickedPages++;
+          for(const a of await readAnchors()) await record(a);
+          advanced=true;
+          break;
+        }
       }
-      if(updated===lastSignature) break;
-      lastSignature=updated;clickedPages++;
-      for(const a of await readAnchors()) await record(a);
+      if(!advanced) break;
     }
-    await writeFile("directory-pagination-result.json",JSON.stringify({clickedPages,uniqueProfiles:found.size,source:request.url},null,2));
+    await writeFile("directory-pagination-result.json",JSON.stringify({clickedPages,uniqueProfiles:found.size,attempts:clickAttempts.slice(0,50),source:request.url},null,2));
     // Re-read the listing after bounded Load More interactions and scrolling.
     for(let round=0;round<pageLimit;round++){
       let advanced=false;
