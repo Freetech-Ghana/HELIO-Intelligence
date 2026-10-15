@@ -317,8 +317,8 @@ export async function POST(request: NextRequest) {
     const page = await readPage(url);
     // RX Global can reuse the same directory URL for a later edition.
     // Never treat a current-site listing as proof of an older edition.
-    if (/theairportshow\\.com$/i.test(new URL(page.source).hostname)) {
-      const eventJson = page.html.match(/<script[^>]*type=["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/i)?.[1];
+    if (/theairportshow\.com$/i.test(new URL(page.source).hostname)) {
+      const eventJson = page.html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i)?.[1];
       let sourceYear: number | null = null;
       if (eventJson) {
         try {
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
           const events = Array.isArray(data) ? data : [data];
           for (const item of events) {
             if (item?.["@type"] === "Event" && typeof item.startDate === "string") {
-              const year = Number(item.startDate.match(/^(20\\d{2})/)?.[1]);
+              const year = Number(item.startDate.match(/^(20\d{2})/)?.[1]);
               if (Number.isInteger(year)) { sourceYear = year; break; }
             }
           }
