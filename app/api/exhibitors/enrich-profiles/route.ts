@@ -13,7 +13,10 @@ const HOSTS = new Set([
   "dwtc.com",
   "www.dwtc.com",
   "informaconnect.com",
-  "www.informaconnect.com"
+  "www.informaconnect.com",
+  "theairportshow.com",
+  "www.theairportshow.com",
+  "airportshow.german-pavilion.com"
 ]);
 
 type Profile = {
