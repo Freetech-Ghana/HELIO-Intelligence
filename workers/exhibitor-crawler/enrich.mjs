@@ -6,6 +6,11 @@ const file="exhibitor-candidates-review.json";
 const data=JSON.parse(await readFile(file,"utf8"));
 if(!Array.isArray(data.candidates)||!data.source) throw Error("Invalid candidate file");
 const source=new URL(data.source);
+const organizerHost=(host)=>/(^|\.)(dmgevents\.com|big5global\.com)$/.test(host.toLowerCase());
+const validWebsite=(h)=>{try{const u=new URL(h);return u.protocol==="https:"&&!organizerHost(u.hostname)&&u.hostname!==source.hostname&&!/\.(pdf|docx?|xlsx?|pptx?|zip)(?:$|[?#])/i.test(u.pathname)&&!/(facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);}catch{return false;}};
+let cleaned=0;
+for(const item of data.candidates){if(item.website&&!validWebsite(item.website)){item.website=null;cleaned++;}}
+await writeFile(file+".tmp",JSON.stringify(data,null,2));await rename(file+".tmp",file);
 const pending=data.candidates.filter(x=>x.profile_url&&x.profile_status!=="review_required"&&x.profile_status!=="unavailable").slice(0,25);
 if(!pending.length){console.log("No pending candidates in this batch.");process.exit(0);}
 const browser=await chromium.launch({headless:true});
@@ -28,12 +33,7 @@ try{
     if(!item.company_name||/^(?:\.{2,}|view|details|read more)$/i.test(item.company_name.trim())) item.company_name=details.title;
    }
    if(details.description&&!/discover the latest industry products|view our exhibitor list|sneak peek at the brands/i.test(details.description)) item.description=details.description.slice(0,500);
-   item.website=details.links.find(h=>{
-    try{
-     const u=new URL(h);
-     return !/\.(pdf|docx?|xlsx?|pptx?|zip)(?:$|[?#])/i.test(u.pathname)&&u.hostname!==source.hostname&&!/(big5global|facebook|linkedin|instagram|youtube|twitter|tiktok|google)/i.test(u.hostname);
-    }catch{return false;}
-   })||null;
+   item.website=details.links.find(validWebsite)||null;
    item.profile_status="review_required";
   }catch(e){item.profile_status="unavailable";failures.push({url:item.profile_url,error:String(e).slice(0,180)});}
   // Save after each profile, so interrupted batches can resume.
@@ -43,4 +43,4 @@ try{
  }
 }finally{await browser.close();}
 const remaining=data.candidates.filter(x=>!x.profile_status).length;
-console.log(JSON.stringify({processed:pending.length,remaining,failed:failures.length,total:data.candidates.length},null,2));
+console.log(JSON.stringify({processed:pending.length,remaining,failed:failures.length,invalidWebsitesCleared:cleaned,total:data.candidates.length},null,2));
