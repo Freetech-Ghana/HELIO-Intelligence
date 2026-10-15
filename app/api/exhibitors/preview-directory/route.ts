@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
         const profile=await readPage(target);
         const heading = profile.html.match(new RegExp("<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>", "i"));
         const title = clean(heading?.[1] || "");
-        const meta = profile.html.match(new RegExp('<meta\\s+[^>]*name=["\\']description["\\'][^>]*content=["\\']([^"\\']*)["\\']', "i"));
+        const meta = profile.html.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
         const description = decodeHtml(meta?.[1] || "").slice(0, 1000);
         const links = [...profile.html.matchAll(/<a\b[^>]*href=["'](https?:[^"']+)["']/gi)].map(m => m[1]);
         const website = links.find(link => { try { const u = new URL(link); return u.protocol === "https:" && u.hostname !== target.hostname && !/facebook|linkedin|instagram|twitter|youtube|wa\.me/i.test(u.hostname); } catch { return false; } }) || "";
