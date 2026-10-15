@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authenticateApi } from "../../../../lib/api-auth";
+import { detectDirectoryPlatform } from "../../../../lib/directory-platform";
 
 export const runtime = "nodejs";
 const MAX_DIRECTORY_BYTES = 3_000_000;
@@ -255,28 +256,9 @@ function extractHr2026(html: string, source: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authorization = request.headers.get("authorization") || "";
-    const token = authorization.startsWith("Bearer ")
-      ? authorization.slice(7)
-      : "";
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-    if (!token || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const db = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
-
-    const { data: { user }, error: authError } = await db.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await authenticateApi(request);
+    if (!auth.ok) return NextResponse.json({error:auth.error,code:auth.code},{status:auth.status});
+    const {db,user} = auth;
 
     const body = await request.json();
     const exhibitionId = body?.exhibitionId;
@@ -354,6 +336,7 @@ export async function POST(request: NextRequest) {
       }
     }
     const rx = inspectRxDirectory(page.html);
+    const platformDetection = detectDirectoryPlatform(page.source,page.html);
     const exhibitors = hr2026 ? extractHr2026(page.html, page.source) : extract(page.html, page.source);
     const dynamicDirectory = exhibitors.length === 0 && (/theairportshow\.com$/i.test(url.hostname) || /reactSettingsShowPlanning|css-components\.rxweb-prd\.com\/packages\/show-planning|api\.reedexpo\.com/i.test(page.html));
     return NextResponse.json({
@@ -361,6 +344,7 @@ export async function POST(request: NextRequest) {
       source: page.source,
       exhibitors,
       count: exhibitors.length,
+      platformDetection,
       rxDirectory: rx.rxDetected ? { platform: "RX Global Show Planning", editionId: rx.editionId, apiOrigin: rx.apiOrigin, status: "api_adapter_pending", note: "The public HTML does not expose exhibitor records. A documented or browser-observed permitted API request is needed before extraction." } : null,
       extractionMode: hr2026 ? "HRSE 2026 Exhibitors section" : dynamicDirectory ? "RX Global dynamic directory (adapter required)" : "Directory profile links",
       extractionStatus: dynamicDirectory ? "javascript_adapter_required" : exhibitors.length ? "candidates_found" : "no_supported_profile_links",
