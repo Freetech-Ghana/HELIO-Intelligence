@@ -6,7 +6,8 @@ const file="exhibitor-candidates-review.json";
 const data=JSON.parse(await readFile(file,"utf8"));
 if(!Array.isArray(data.candidates)||!data.source) throw Error("Invalid candidates file");
 const root=new URL(data.source);
-const pending=data.candidates.filter(x=>x.profile_url&&!x.details_checked_at).slice(0,25);
+const recheck=process.argv.includes("--recheck-first");
+const pending=(recheck?data.candidates.slice(0,25).filter(x=>x.profile_url):data.candidates.filter(x=>x.profile_url&&!x.details_checked_at).slice(0,25));
 if(!pending.length){console.log(JSON.stringify({processed:0,remaining:0,total:data.candidates.length}));process.exit(0);}
 const browser=await chromium.launch({headless:true});
 let failed=0;
