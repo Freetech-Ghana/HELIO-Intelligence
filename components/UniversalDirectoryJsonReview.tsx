@@ -28,7 +28,7 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
   const [files, setFiles] = useState<string[]>([]);
   const [autoBusy,setAutoBusy] = useState(false);
   const [inspectBusy,setInspectBusy]=useState(false);
-  const [inspection,setInspection]=useState<{platform:string;status:string;count:number;message:string;coverage?:string;enriched?:number}|null>(null);
+  const [inspection,setInspection]=useState<{platform:string;status:string;count:number;message:string;coverage?:string;enriched?:number;profiles?:{company_name:string;country:string;hall:string;stand:string;profile_url:string;website?:string;description?:string;profile_status?:string}[]}|null>(null);
   async function inspectOfficialDirectory(){
     setInspectBusy(true);setError("");setInspection(null);
     try {
@@ -49,10 +49,20 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
         count:Number(result.count||0),
         message:result.extractionDiagnostic||"Inspection completed. All candidates require manual verification.",
         coverage:result.coverage?.note||"Directory coverage has not been verified.",
-        enriched:Number(result.enrichedCount||0)
+        enriched:Number(result.enrichedCount||0),
+        profiles:Array.isArray(result.enrichedProfiles)&&result.enrichedProfiles.length?result.enrichedProfiles:result.exhibitors||[]
       });
     } catch(e){setError(e instanceof Error?e.message:"Inspection failed");}
     finally{setInspectBusy(false);}
+  }
+  function downloadInspectionCsv(){
+    if(!inspection?.profiles?.length)return;
+    const keys=["company_name","country","hall","stand","website","description","profile_url","profile_status"] as const;
+    const quote=(value:string)=>'"'+value.replace(/"/g,'""')+'"';
+    const csv=[keys.join(","),...inspection.profiles.map(profile=>keys.map(key=>quote(String(profile[key]||""))).join(","))].join("\r\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="HELIO_exhibitor_candidates_review.csv";a.click();URL.revokeObjectURL(url);
   }
   const [editionStatus,setEditionStatus] = useState<{label:string;note:string;canAutomaticallyRead:boolean;selectedYear:number;status:string}|null>(null);
   useEffect(()=>{
@@ -141,6 +151,20 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
       <p>{inspection.message}</p>
       <p><strong>Coverage:</strong> {inspection.coverage||"Unknown"} </p>
       <p><strong>Profiles enriched for review:</strong> {inspection.enriched??0} (not independently verified)</p>
+      {inspection.profiles?.length ? <div>
+        <button type="button" onClick={downloadInspectionCsv}>Download extracted candidates CSV (review only)</button>
+        <div style={{maxHeight:340,overflow:"auto",marginTop:10}}>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+            <thead><tr>{["Company","Website","Description","Profile status"].map(label=><th key={label} style={{textAlign:"left",padding:6,borderBottom:"1px solid #ddd"}}>{label}</th>)}</tr></thead>
+            <tbody>{inspection.profiles.map((profile,index)=><tr key={profile.profile_url+index}>
+              <td style={{padding:6}}><a href={profile.profile_url} target="_blank" rel="noopener noreferrer">{profile.company_name}</a></td>
+              <td style={{padding:6}}>{profile.website?<a href={profile.website} target="_blank" rel="noopener noreferrer">Website</a>:"—"}</td>
+              <td style={{padding:6}}>{profile.description||"—"}</td>
+              <td style={{padding:6}}>{profile.profile_status||"candidate only"}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </div>:null}
       <p>Read-only inspection. Candidates are not verified exhibitors and nothing was imported.</p>
     </div>}
     <p><button type="button" disabled={!exhibitionId||autoBusy||!editionStatus?.canAutomaticallyRead} onClick={()=>void autoRead()}>{autoBusy?"Reading pages...":"Read supported directory automatically"}</button></p>
