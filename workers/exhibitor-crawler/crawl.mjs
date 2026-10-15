@@ -35,6 +35,7 @@ for(const line of rules) {
 const found=new Map();
 const visited=new Set();
 const queue=[root.href];
+const failures=[];
 const limit=5;
 const crawler=new PlaywrightCrawler({
   maxRequestsPerCrawl:limit,
@@ -43,7 +44,7 @@ const crawler=new PlaywrightCrawler({
   requestHandlerTimeoutSecs:35,
   navigationTimeoutSecs:20,
   launchContext:{launchOptions:{headless:true}},
-  async requestHandler({page,request}) {
+  async requestHandler({page,request,addRequests}) {
     const final=new URL(page.url());
     if(final.protocol!=="https:"||final.hostname.toLowerCase()!==host) throw Error("Redirected outside the approved host");
     await page.waitForLoadState("domcontentloaded");
@@ -51,27 +52,44 @@ const crawler=new PlaywrightCrawler({
       name:(a.textContent||a.querySelector("img")?.getAttribute("alt")||"").replace(/\s+/g," ").trim(),
       href:a.href,rel:a.getAttribute("rel")||""
     })).slice(0,5000));
-    for(const a of data) {
-      let u;try{u=new URL(a.href);}catch{continue;}
-      if(u.origin!==root.origin||u.protocol!=="https:") continue;
+    const record=async(a)=>{
+      let u;try{u=new URL(a.href);}catch{return;}
+      if(u.origin!==root.origin||u.protocol!=="https:") return;
       if(/\/exhibitors?\/[^/?#]+|\/exhibitor-details(?:\.|\/)[^/?#]+|\/en\/sites\/exhibitors\/[^/?#]+/i.test(u.pathname)&&a.name.length>=2&&a.name.length<=160){
         const key=u.origin+u.pathname.replace(/\/$/,"").toLowerCase();
         if(!found.has(key)) found.set(key,{company_name:a.name,profile_url:u.href,source_page:request.url,edition_year:year,verification_status:"unverified"});
       }
       if((/^\d{1,3}$/.test(a.name)||/\bnext\b/i.test(a.name+" "+a.rel))&&/[?&](?:page|p)=\d+|\/page\/\d+\/?/i.test(u.href)&&!visited.has(u.href)&&queue.length<limit){
         queue.push(u.href);visited.add(u.href);
+        await addRequests([{url:u.href}]);
       }
+    };
+    for(const a of data) await record(a);
+    // Re-read the listing after bounded Load More interactions and scrolling.
+    for(let round=0;round<4;round++){
+      let advanced=false;
+      for(const selector of ['button:has-text("Load more")','button:has-text("Show more")','a:has-text("Load more")']){
+        const button=page.locator(selector).first();
+        if(await button.isVisible().catch(()=>false)&&await button.isEnabled().catch(()=>false)){
+          await button.click({timeout:3000}).catch(()=>{});advanced=true;break;
+        }
+      }
+      if(!advanced){await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));}
+      await page.waitForTimeout(700);
+      const updated=await page.locator("a[href]").evaluateAll(anchors=>anchors.map(a=>({
+        name:(a.textContent||a.querySelector("img")?.getAttribute("alt")||"").replace(/\s+/g," ").trim(),
+        href:a.href,rel:a.getAttribute("rel")||""
+      })).slice(0,5000));
+      const before=found.size;
+      for(const a of updated) await record(a);
+      if(found.size===before&&!advanced) break;
     }
+
   },
-  failedRequestHandler({request,error}){console.error("Page failed:",request.url,error?.message);}
+  failedRequestHandler({request,error}){failures.push({url:request.url,error:error?.message||"failed"});console.error("Page failed:",request.url,error?.message);}
 });
 Configuration.getGlobalConfig().set("persistStorage",false);
-for(let i=0;i<queue.length&&i<limit;i++) {
-  // Each navigation is bounded and subject to the same host restriction.
-  const target=new URL(queue[i]);
-  if(target.hostname!==host) continue;
-  await crawler.run([target.href]);
-}
-const output={source:root.href,selectedEditionYear:year,editionVerified:false,coverage:"partial_unverified",pagesQueued:queue.length,candidates:[...found.values()]};
+await crawler.run([root.href]);
+const output={source:root.href,selectedEditionYear:year,editionVerified:false,coverage:"partial_unverified",pagesQueued:queue.length,pagesFailed:failures,completenessVerified:false,candidates:[...found.values()]};
 await writeFile("exhibitor-candidates-review.json",JSON.stringify(output,null,2));
 console.log("Saved",output.candidates.length,"unverified candidates to exhibitor-candidates-review.json");
