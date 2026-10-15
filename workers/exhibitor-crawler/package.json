@@ -1,0 +1,12 @@
+{
+  "name": "helio-exhibitor-crawler",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl": "node crawl.mjs"
+  },
+  "dependencies": {
+    "crawlee": "^3.15.0",
+    "playwright": "^1.58.0"
+  }
+}
