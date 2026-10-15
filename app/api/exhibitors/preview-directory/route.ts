@@ -345,10 +345,12 @@ export async function POST(request: NextRequest) {
         const target=approved(candidate.profile_url);
         if (!target || new URL(page.source).origin!==target.origin) return {...candidate,profile_status:"blocked",website:"",description:""};
         const profile=await readPage(target);
-        const title=clean(profile.html.match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/i)?.[1]||"");
-        const description=decodeHtml(profile.html.match(/<meta\\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1]||"").slice(0,1000);
-        const links=[...profile.html.matchAll(/<a\\b[^>]*href=["'](https:\\/\\/[^"']+)["']/gi)].map(m=>m[1]);
-        const website=links.find(link=>{try{const u=new URL(link);return u.hostname!==target.hostname && !/facebook|linkedin|instagram|twitter|youtube|wa\\.me/i.test(u.hostname)}catch{return false}})||"";
+        const heading = profile.html.match(new RegExp("<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>", "i"));
+        const title = clean(heading?.[1] || "");
+        const meta = profile.html.match(new RegExp('<meta\\s+[^>]*name=["\\']description["\\'][^>]*content=["\\']([^"\\']*)["\\']', "i"));
+        const description = decodeHtml(meta?.[1] || "").slice(0, 1000);
+        const links = [...profile.html.matchAll(/<a\b[^>]*href=["'](https?:[^"']+)["']/gi)].map(m => m[1]);
+        const website = links.find(link => { try { const u = new URL(link); return u.protocol === "https:" && u.hostname !== target.hostname && !/facebook|linkedin|instagram|twitter|youtube|wa\.me/i.test(u.hostname); } catch { return false; } }) || "";
         return {...candidate,company_name:title&&title.length<160?title:candidate.company_name,description,website,profile_status:"review_required"};
       } catch {return {...candidate,description:"",website:"",profile_status:"unavailable"};}
     }));
