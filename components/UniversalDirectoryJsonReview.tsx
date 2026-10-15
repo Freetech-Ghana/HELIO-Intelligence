@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "../lib/db";
 import { inspectDirectoryJson, type DirectoryReview } from "../lib/exhibition-directory-adapters";
 
@@ -9,6 +9,26 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
   const [filter, setFilter] = useState("");
   const [files, setFiles] = useState<string[]>([]);
   const [autoBusy,setAutoBusy] = useState(false);
+  const [editionStatus,setEditionStatus] = useState<{label:string;note:string;canAutomaticallyRead:boolean;selectedYear:number;status:string}|null>(null);
+  useEffect(()=>{
+    let active=true;
+    setEditionStatus(null);
+    if (!exhibitionId) return;
+    void (async()=>{
+      try {
+        const {data:{session}}=await db().auth.getSession();
+        if (!session) return;
+        const response=await fetch("/api/exhibitors/edition-status",{
+          method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},
+          body:JSON.stringify({exhibitionId})
+        });
+        if (!response.ok) return;
+        const result=await response.json();
+        if (active) setEditionStatus(result);
+      } catch { /* Status unavailable; never assume verified */ }
+    })();
+    return ()=>{active=false;};
+  },[exhibitionId]);
   async function autoRead() {
     setAutoBusy(true);setError("");setReport(null);
     try {
@@ -59,7 +79,9 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
   return <details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
     <summary style={{cursor:"pointer",fontWeight:600}}>Universal Exhibition JSON Reader — review only</summary>
     <p>Upload one or more JSON pages from an authorized official exhibitor directory. The adapter recognizes supported directory platforms; it never imports automatically.</p>
-    <p><button type="button" disabled={!exhibitionId||autoBusy} onClick={()=>void autoRead()}>{autoBusy?"Reading pages...":"Read supported directory automatically"}</button></p>
+    {editionStatus && <div role="status" style={{padding:10,marginBottom:12,background:"#f5f6f8",borderRadius:6}}><strong>Edition verification ({editionStatus.selectedYear}): {editionStatus.label}</strong><p>{editionStatus.note}</p></div>}
+    <p><button type="button" disabled={!exhibitionId||autoBusy||!editionStatus?.canAutomaticallyRead} onClick={()=>void autoRead()}>{autoBusy?"Reading pages...":"Read supported directory automatically"}</button></p>
+    {!editionStatus?.canAutomaticallyRead && <p>Automatic reading is paused until an authorized, edition-specific source is verified. You may still review JSON files manually.</p>}
     <input type="file" accept=".json,.txt,application/json" multiple onChange={e=>void onFiles(e.target.files)} aria-label="Upload directory JSON pages" />
     {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
     {report && <div>
