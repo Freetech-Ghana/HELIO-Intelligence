@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authenticateApi } from "../../../../lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -31,44 +31,9 @@ const text = (value: unknown, max: number) =>
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers
-      .get("authorization")
-      ?.replace(/^Bearer\s+/i, "")
-      .trim();
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-    if (!token || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const db = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      },
-      global: {
-        headers: { Authorization: `Bearer ${token}` }
-      }
-    });
-
-    const {
-      data: { user },
-      error: authError
-    } = await db.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const auth = await authenticateApi(request);
+    if (!auth.ok) return NextResponse.json({error:auth.error,code:auth.code},{status:auth.status});
+    const {db,user} = auth;
 
     const body = await request.json();
     const exhibitionId = body?.exhibitionId;
