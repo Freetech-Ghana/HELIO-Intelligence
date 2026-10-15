@@ -402,6 +402,35 @@ setApprovedProfiles(previous =>
   }
 }
 
+const [rxJson, setRxJson] = useState("");
+const [rxResult, setRxResult] = useState("");
+const [rxBusy, setRxBusy] = useState(false);
+async function inspectRxJson() {
+  setRxBusy(true);
+  setRxResult("");
+  try {
+    const {data:{session}} = await db().auth.getSession();
+    if (!session) throw new Error("Please sign in first.");
+    const response = await fetch("/api/exhibitors/inspect-rx-json",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
+      body:JSON.stringify({exhibitionId,rawJson:rxJson})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Inspection failed");
+    setRxResult([
+      `Company: ${result.organisation.companyName}`,
+      `Display name: ${result.organisation.displayName || "Not provided"}`,
+      `Edition ID: ${result.organisation.eventEditionId}`,
+      `Edition evidence: ${result.editionEvidence}`,
+      `Products (not exhibitors): ${result.productCount}`,
+      result.warning
+    ].join("\\n"));
+  } catch(error) {
+    setRxResult(error instanceof Error ? error.message : "Inspection failed");
+  } finally { setRxBusy(false); }
+}
+
 const [readMessage, setReadMessage] = useState("");
 
 async function readDirectory() {
@@ -534,6 +563,13 @@ setApprovedProfiles([]);
   return (
     <section style={{ marginTop: 24, padding: 20, border: "1px solid #ccc", borderRadius: 12 }}>
       <h2>Exhibitor Review Workspace — v2.2</h2>
+<details style={{marginBottom:16,padding:12,border:"1px solid #ddd",borderRadius:8}}>
+  <summary style={{cursor:"pointer",fontWeight:600}}>Inspect RX Global GraphQL JSON (read-only)</summary>
+  <p>Paste a public exhibitingOrganisation response from browser Network → Response. This checks one company and its products; it does not import exhibitors.</p>
+  <textarea rows={5} style={{width:"100%",padding:10}} value={rxJson} onChange={e=>setRxJson(e.target.value)} placeholder='{"data":{"exhibitingOrganisation":{...}}}' />
+  <button type="button" onClick={inspectRxJson} disabled={rxBusy || !rxJson.trim()}>{rxBusy?"Inspecting...":"Inspect RX Response"}</button>
+  <pre role="status" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{rxResult}</pre>
+</details>
 <button type="button" onClick={readDirectory} disabled={
   reading ||
   bulkEnriching ||
