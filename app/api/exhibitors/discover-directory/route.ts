@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from 'next/server';
-import {createClient} from '@supabase/supabase-js';
+import {authenticateApi} from "../../../../lib/api-auth";
 export const runtime='nodejs';
 const APPROVED=new Set(['www.dwtc.com','dwtc.com','www.gulfhost.ae','gulfhost.ae','www.ism-me.com','ism-me.com','informaconnect.com','www.informaconnect.com','adnec.ae','www.adnec.ae','expocitydubai.com','www.expocitydubai.com','theairportshow.com','www.theairportshow.com','airportshow.german-pavilion.com']);
 const MAX_BYTES=500000;
@@ -66,23 +66,9 @@ function platformSignals(html:string){
 }
 export async function POST(req:NextRequest){
  try{
-  const bearer=req.headers.get('authorization')||'';
-  const token=bearer.startsWith('Bearer ')?bearer.slice(7):'';
-  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if(!token||!url||!key)return NextResponse.json({error:'Unauthorized'},{status:401});
-  const db=createClient(url,key,{
-  auth:{
-    persistSession:false,
-    autoRefreshToken:false
-  },
-  global:{
-    headers:{
-      Authorization:`Bearer ${token}`
-    }
-  }
-});
-  const {data:{user},error}=await db.auth.getUser(token);
-  if(error||!user)return NextResponse.json({error:'Unauthorized'},{status:401});
+  const auth = await authenticateApi(req);
+  if (!auth.ok) return NextResponse.json({error:auth.error,code:auth.code},{status:auth.status});
+  const {db,user} = auth;
   const body=await req.json() as {exhibitionId?:string};
   if(!body.exhibitionId||!/^[a-f0-9-]{36}$/i.test(body.exhibitionId))return NextResponse.json({error:'Invalid exhibition ID'},{status:400});
   const {data:event,error:lookup}=await db.from('exhibitions').select('id,name,edition_year,discovery_event_url,official_website,directory_url').eq('id',body.exhibitionId).eq('owner_id',user.id).single();
