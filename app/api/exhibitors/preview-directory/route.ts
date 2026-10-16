@@ -432,6 +432,20 @@ export async function POST(request: NextRequest) {
         return {...candidate,company_name:title&&title.length<160?title:candidate.company_name,description,website,profile_status:"review_required"};
       } catch {return {...candidate,description:"",website:"",profile_status:"unavailable"};}
     }));
+    // A repeated outbound URL across different exhibitors is usually a shared
+    // organizer, media or navigation link, not each company's own website.
+    // Fail closed: keep it blank until individually verified.
+    const websiteCounts = new Map<string, number>();
+    for (const item of enriched) {
+      if (!item.website) continue;
+      const host = new URL(item.website).hostname.toLowerCase().replace(/^www\./, "");
+      websiteCounts.set(host, (websiteCounts.get(host) || 0) + 1);
+    }
+    for (const item of enriched) {
+      if (!item.website) continue;
+      const host = new URL(item.website).hostname.toLowerCase().replace(/^www\./, "");
+      if ((websiteCounts.get(host) || 0) > 1) item.website = "";
+    }
     const dynamicDirectory = exhibitors.length === 0 && (/theairportshow\.com$/i.test(url.hostname) || /reactSettingsShowPlanning|css-components\.rxweb-prd\.com\/packages\/show-planning|api\.reedexpo\.com/i.test(page.html));
     return NextResponse.json({
       exhibition: exhibition.name,
