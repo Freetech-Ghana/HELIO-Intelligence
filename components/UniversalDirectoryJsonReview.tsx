@@ -51,7 +51,7 @@ export default function UniversalDirectoryJsonReview({exhibitionId}:{exhibitionI
         message:result.extractionDiagnostic||"Inspection completed. All candidates require manual verification.",
         coverage:result.coverage?.note||"Directory coverage has not been verified.",
         enriched:Number(result.enrichedCount||0),
-        profiles:Array.isArray(result.enrichedProfiles)&&result.enrichedProfiles.length?result.enrichedProfiles:result.exhibitors||[]
+        profiles:Array.isArray(result.exhibitors)?result.exhibitors.map((p:{profile_url:string})=>(Array.isArray(result.enrichedProfiles)?result.enrichedProfiles.find((e:{profile_url:string})=>e.profile_url===p.profile_url):null)||p):[]
       });
     } catch(e){setError(e instanceof Error?e.message:"Inspection failed");}
     finally{setInspectBusy(false);}
