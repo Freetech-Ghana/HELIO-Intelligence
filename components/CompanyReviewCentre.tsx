@@ -8,9 +8,30 @@ export default function CompanyReviewCentre({exhibitionId}:{exhibitionId:string}
  const [stored,setStored]=useState<(Candidate&{id:string;review_decision:string})[]>([]);
  const [jobs,setJobs]=useState<{id:string;status:string;profiles_found:number;coverage_status:string}[]>([]);
  const [busy,setBusy]=useState(false);
+ const [uploadProgress,setUploadProgress]=useState("");
  async function request(method:"GET"|"POST"|"PATCH",payload?:unknown){const {data:{session}}=await db().auth.getSession();if(!session)throw Error("Sign in first");const response=await fetch("/api/exhibitors/crawl-jobs"+(method==="GET"?"?exhibitionId="+encodeURIComponent(exhibitionId):""),{method,headers:{Authorization:"Bearer "+session.access_token,...(method==="GET"?{}:{"Content-Type":"application/json"})},...(method==="GET"?{}:{body:JSON.stringify(payload)})});const result=await response.json();if(!response.ok)throw Error(result.error||"Request failed");return result;}
  async function refresh(){setBusy(true);setError("");try{const r=await request("GET");setStored(r.candidates||[]);setJobs(r.jobs||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load saved candidates");}finally{setBusy(false);}}
  async function queue(){setBusy(true);setError("");try{await request("POST",{exhibitionId});await refresh();}catch(e){setError(e instanceof Error?e.message:"Could not queue job");}finally{setBusy(false);}}
+ async function uploadToStaging(){
+  if(!records.length||!exhibitionId)return;
+  setBusy(true);setError("");setUploadProgress("Checking crawler job...");
+  try{
+   const listing=await request("GET");
+   const job=(listing.jobs||[]).find((j:{id:string;status:string})=>["queued","running","partial"].includes(j.status));
+   if(!job)throw Error("Queue exhibitor discovery first, then refresh.");
+   const {data:{session}}=await db().auth.getSession();
+   if(!session)throw Error("Sign in first.");
+   for(let i=0;i<records.length;i+=50){
+    const response=await fetch("/api/exhibitors/crawl-results",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},body:JSON.stringify({jobId:job.id,candidates:records.slice(i,i+50),finished:i+50>=records.length})});
+    const result=await response.json();
+    if(!response.ok)throw Error("Batch "+(Math.floor(i/50)+1)+": "+(result.error||"Upload failed"));
+    setUploadProgress("Transferred "+Math.min(i+50,records.length)+" / "+records.length+" profiles");
+   }
+   const updated=await request("GET");setStored(updated.candidates||[]);setJobs(updated.jobs||[]);
+   setUploadProgress("Transfer complete. Profiles remain unverified and are not in the CRM.");
+  }catch(e){setError(e instanceof Error?e.message:"Upload failed. You may retry safely.");}
+  finally{setBusy(false);}
+ }
  async function decide(id:string,decision:string){try{await request("PATCH",{id,decision});setStored(prev=>prev.map(x=>x.id===id?{...x,review_decision:decision}:x));}catch(e){setError(e instanceof Error?e.message:"Review update failed");}}
 
  const [error,setError]=useState("");
@@ -45,12 +66,13 @@ export default function CompanyReviewCentre({exhibitionId}:{exhibitionId:string}
   const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download="HELIO_company_review_decisions.json";a.click();URL.revokeObjectURL(u);
  }
  return <section style={{border:"1px solid #ddd",borderRadius:8,padding:14,marginTop:14}}>
-  <h3>Company Review Centre — local review only</h3>
-  <p>Upload the crawler's exhibitor-candidates-review.json. Company names are grouped for inspection; each exhibitor profile and stand remains separate. No automatic merging, verification, or database import.</p>
+  <h3>Company Review Centre — staging and review</h3>
+  <p>Upload the crawler's exhibitor-candidates-review.json. Company names are grouped for inspection; each exhibitor profile and stand remains separate. You can save candidates to Supabase staging; this does not verify exhibitors or import them into the live CRM.</p>
   <div style={{padding:10,border:"1px solid #ddd",borderRadius:6,marginBottom:12}}><strong>Supabase crawler staging</strong><p>Queued jobs require a separately running crawler worker. Results appear here after the worker submits them; CRM import remains disabled.</p><button type="button" disabled={busy||!exhibitionId} onClick={()=>void queue()}>Queue exhibitor discovery</button> <button type="button" disabled={busy||!exhibitionId} onClick={()=>void refresh()}>Refresh saved candidates</button>{jobs.map(j=><p key={j.id}>Job {j.id} — {j.status} · {j.profiles_found} stored · {j.coverage_status}</p>)}<p>{stored.length} saved candidate profiles</p><div style={{maxHeight:350,overflow:"auto"}}>{stored.map(x=><div key={x.id} style={{padding:5,borderBottom:"1px solid #eee"}}><a href={x.profile_url} target="_blank" rel="noopener noreferrer">{x.company_name}</a> — {x.hall||"Hall unknown"} / {x.stand_number||"Stand unknown"} <select aria-label={"Review saved "+x.company_name} value={x.review_decision} onChange={e=>void decide(x.id,e.target.value)}><option value="pending">Pending</option><option value="keep_separate">Keep separate</option><option value="group_company">Group company</option><option value="reject">Reject</option></select></div>)}</div></div>
   <input type="file" accept=".json,application/json" aria-label="Choose crawler candidate JSON" onChange={e=>void load(e.target.files?.[0])}/>
   {error&&<p role="alert" style={{color:"#b42318"}}>{error}</p>}
   {records.length>0&&<div>
+   <p><button type="button" disabled={busy||!exhibitionId} onClick={()=>void uploadToStaging()}>{busy?"Transferring...":"Save these profiles to Supabase staging"}</button> {uploadProgress}</p>
    <p><strong>{records.length}</strong> profiles · <strong>{groups.length}</strong> name groups · <strong>{repeated.length}</strong> repeated-name groups · <strong>{records.filter(r=>!r.country||!r.hall||!r.stand_number).length}</strong> missing location</p>
    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, hall, stand, country" aria-label="Search companies"/>
    <select aria-label="Filter company groups" value={mode} onChange={e=>setMode(e.target.value)}><option value="all">All companies</option><option value="repeated">Repeated names</option><option value="missing">Missing location</option></select>
