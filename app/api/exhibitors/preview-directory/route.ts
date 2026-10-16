@@ -428,7 +428,7 @@ export async function POST(request: NextRequest) {
         const meta = profile.html.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
         const description = decodeHtml(meta?.[1] || "").slice(0, 1000);
         const links = [...profile.html.matchAll(/<a\b[^>]*href=["'](https?:[^"']+)["']/gi)].map(m => m[1]);
-        const website = links.find(link => { try { const u = new URL(link); return u.protocol === "https:" && u.hostname !== target.hostname && !/facebook|linkedin|instagram|twitter|youtube|wa\.me/i.test(u.hostname); } catch { return false; } }) || "";
+        const website = links.find(link => { try { const u = new URL(link); const host=u.hostname.toLowerCase().replace(/^www\./,""); const organizer=new Set(["informa.com","informaconnect.com","informa.co.uk","informa.net"]); return ["https:","http:"].includes(u.protocol) && u.hostname !== target.hostname && !organizer.has(host) && ![...organizer].some(d=>host.endsWith("."+d)) && !/facebook|linkedin|instagram|twitter|x\.com|youtube|wa\.me|tiktok|google\.com|eventbrite|mailto/i.test(host); } catch { return false; } }) || "";
         return {...candidate,company_name:title&&title.length<160?title:candidate.company_name,description,website,profile_status:"review_required"};
       } catch {return {...candidate,description:"",website:"",profile_status:"unavailable"};}
     }));
